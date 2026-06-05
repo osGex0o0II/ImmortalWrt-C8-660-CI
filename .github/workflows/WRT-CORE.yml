@@ -105,9 +105,19 @@ jobs:
       - name: Apply Patches
         run: |
           if [ -d "$GITHUB_WORKSPACE/patches" ]; then
-            cp -f $GITHUB_WORKSPACE/patches/*.dts ./wrt/target/linux/mediatek/dts/ 2>/dev/null || true
+            echo "=== APPLYING PATCHES ==="
+            cp -vf $GITHUB_WORKSPACE/patches/*.dts ./wrt/target/linux/mediatek/dts/ 2>/dev/null || true
             cat $GITHUB_WORKSPACE/patches/*.mk >> ./wrt/target/linux/mediatek/image/filogic.mk 2>/dev/null || true
+            echo "=== PATCHES APPLIED ==="
           fi
+
+      - name: Verify DTS
+        run: |
+          for DTS in ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts; do
+            if [ -f "$DTS" ]; then echo "OK: Found $DTS";
+            else echo "WARN: Missing $DTS"; fi
+          done
+          grep -q "nradio_c8-660" ./wrt/target/linux/mediatek/image/filogic.mk && echo "OK: Device added to filogic.mk" || echo "WARN: Device NOT in filogic.mk"
 
       - name: Check Scripts
         run: |
@@ -122,8 +132,10 @@ jobs:
           restore-keys: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}
           path: |
             ./wrt/.ccache
+            ./wrt/feeds
             ./wrt/staging_dir/host*
             ./wrt/staging_dir/tool*
+            ./wrt/dl
 
       - name: Update Caches
         if: env.WRT_TEST != 'true'
@@ -153,8 +165,13 @@ jobs:
         run: |
           cd ./wrt/
 
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          if [ -d "./feeds/luci" ] && [ -d "./feeds/packages" ] && [ "${{ steps.check-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "Feeds restored from cache, skip update"
+            ./scripts/feeds install -a
+          else
+            ./scripts/feeds update -a
+            ./scripts/feeds install -a
+          fi
 
       - name: Custom Packages
         run: |
@@ -175,7 +192,20 @@ jobs:
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
-          make defconfig -j$(nproc) && make clean -j$(nproc)
+          if ! make defconfig -j$(nproc); then
+            echo "ERROR: make defconfig failed!"
+            cat .config
+            exit 1
+          fi
+
+          make clean -j$(nproc)
+
+      - name: Check Disk Space
+        run: |
+          echo "=== DISK SPACE BEFORE BUILD ==="
+          df -h
+          echo "=== TOP 10 LARGE DIRS ==="
+          du -sh ./wrt/* 2>/dev/null | sort -rh | head -10
 
       - name: Download Packages
         if: env.WRT_TEST != 'true'
@@ -186,6 +216,7 @@ jobs:
 
       - name: Compile Firmware
         if: env.WRT_TEST != 'true'
+        timeout-minutes: 300
         run: |
           cd ./wrt/
 
@@ -199,6 +230,14 @@ jobs:
             grep -iE 'error|conflict|failed|No such|No rule|cannot|denied' build.log | tail -50
             exit 1
           fi
+
+      - name: Upload Build Log
+        if: env.WRT_TEST != 'true' && failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{env.WRT_CONFIG}}
+          path: ./wrt/build.log
+          retention-days: 3
 
       - name: Machine Information
         run: |
