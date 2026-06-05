@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
-# NRadio C8-660 专用固件编译 (MT7981/ImmortalWrt)
-name: C8-660
+# ImmortalWrt 固件编译 — NRadio C8-660 (MT7981)
+name: ImmortalWrt NRadio C8-660
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ env:
 
 jobs:
   build:
-    name: C8-660-immortalwrt
+    name: immortalwrt-c8-660
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Projects
