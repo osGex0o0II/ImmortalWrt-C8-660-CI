@@ -204,13 +204,18 @@
 		nvmem-cells = <&macaddr 1>;
 		nvmem-cell-names = "mac-address";
 
+		/*
+		 * FIXME: phy6 (ethernet-phy@6) on MDIO bus is not referenced
+		 * by any MAC. If gmac1 connects to this external 2.5GbE PHY (C45),
+		 * replace fixed-link with: phy-handle = <&phy6>;
+		 * Must be confirmed against the hardware schematic.
+		 */
 		fixed-link {
 			speed = <2500>;
 			full-duplex;
 			pause;
 		};
 	};
-
 	mdio: mdio-bus {
 		#address-cells = <1>;
 		#size-cells = <0>;

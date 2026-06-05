@@ -7,6 +7,10 @@ name: ImmortalWrt NRadio C8-660
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: write
+
 env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   WRT_CONFIG: NRADIO-C8-660
@@ -26,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Projects
-        uses: actions/checkout@main
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - name: Initialization Environment
         env:
@@ -39,7 +43,16 @@ jobs:
           sudo -E apt -yqq autoclean
           sudo -E apt -yqq clean
           sudo -E apt -yqq install dos2unix libfuse-dev
-          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+          curl -sL "https://build-scripts.immortalwrt.org/init_build_environment.sh" -o /tmp/init_build_env.sh
+          EXPECTED_SHA256="85f4b2c2aa16f8178b57250f5d2bcf4a2e0707c6b569a3b07510f41fc6185dd8"
+          ACTUAL_SHA256=$(sha256sum /tmp/init_build_env.sh | cut -d' ' -f1)
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "SECURITY ERROR: init_build_environment.sh SHA256 mismatch!"
+            echo "Expected: $EXPECTED_SHA256"
+            echo "Got:      $ACTUAL_SHA256"
+            exit 1
+          fi
+          sudo bash /tmp/init_build_env.sh
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
@@ -82,11 +95,12 @@ jobs:
 
       - name: Check Scripts
         run: |
-          find ./ -maxdepth 3 -type f -iregex ".*\(txt\|sh\)$" -exec dos2unix {} \; -exec chmod +x {} \;
+          find ./ -maxdepth 3 -type f -iname "*.sh" -exec dos2unix {} \; -exec chmod +x {} \;
+          find ./ -maxdepth 3 -type f -iname "*.txt" -exec dos2unix {} \;
 
       - name: Check Caches
         id: check-cache
-        uses: actions/cache@main
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           key: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_HASH}}
           restore-keys: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}
@@ -106,7 +120,7 @@ jobs:
 
             mkdir -p ./wrt/tmp && echo "1" > ./wrt/tmp/.build
 
-            echo "toolchain skiped done!"
+            echo "toolchain skipped!"
           else
             echo "caches missed!"
           fi
@@ -224,10 +238,8 @@ jobs:
 
           find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
 
-          make clean -j$(nproc)
-
       - name: Release Firmware
-        uses: softprops/action-gh-release@master
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
           files: ./wrt/upload/*.*
@@ -248,3 +260,9 @@ jobs:
 
             内核版本：${{env.WRT_KVER}}
             插件列表：${{env.WRT_LIST}}
+
+      - name: Clean Build Workspace
+        if: always()
+        run: |
+          cd ./wrt/
+          make clean -j$(nproc)
