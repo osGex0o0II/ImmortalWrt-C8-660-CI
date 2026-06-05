@@ -102,6 +102,15 @@ jobs:
 
           cd ./wrt/ && echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
 
+      - name: Apply Patches
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/patches" ]; then
+            cp -f $GITHUB_WORKSPACE/patches/*.dts ./wrt/target/linux/mediatek/dts/ 2>/dev/null || true
+            cd ./wrt/ && for PATCH in $GITHUB_WORKSPACE/patches/*.patch; do
+              git apply "$PATCH" 2>/dev/null || echo "Warning: Failed to apply $PATCH"
+            done
+          fi
+
       - name: Check Scripts
         run: |
           find ./ -maxdepth 3 -type f -iregex ".*\(txt\|sh\)$" -exec dos2unix {} \; -exec chmod +x {} \;

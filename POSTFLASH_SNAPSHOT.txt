@@ -1,0 +1,26 @@
+# NRadio C8-660 刷机后状态快照
+# 记录时间: 2026-06-05
+
+## 刷前 → 刷后对比
+
+| 项目 | 刷前 | 刷后 | 变化 |
+|------|------|------|------|
+| Compatible | nradio,wt9103 | nradio,wt9103 | 不变 |
+| 内核版本 | 5.4.255 (Dec 20 2023) | 5.4.255 (Feb 25 2024) | 编译日期更新 |
+| OS 版本 | r20465-c19e641167 | r20568-3fa9687ca7 V12 | 更新 |
+| RAM | 491484 KB | 490708 KB | 微降 |
+| MAC eth0 (LAN) | 7a:d7:96:00:d4:a9 | e6:c4:44:34:8d:42 | **已变** |
+| MAC eth1 (5G) | fc:83:c6:0d:aa:09 | fc:83:c6:0d:aa:09 | 不变 |
+| WiFi SSID | (未设置) | ImmortalWrt-2.4G-AA08 | 已设置 |
+| UBI kernel | 29 LEBs (3.5MB) | 31 LEBs (3.7MB) | 增大 |
+| UBI rootfs | 214 LEBs (25.9MB) | 214 LEBs (25.9MB) | 不变 |
+| MTD/分区 | 相同 | 相同 | 不变 |
+| GPIO/LED | 相同 | 相同 | 不变 |
+| Modem | RM520N-CN | RM520N-CN | 不变 |
+| WiFi 驱动 | mt_wifi (MTK 私有) | mt_wifi (MTK 私有) | 不变 |
+| br-lan IP | 192.168.66.1 | 192.168.66.1 | 不变 |
+
+## 结论
+此固件仍是 NRadio/MTK SDK 分支的 ImmortalWrt 21.02 (内核 5.4)，
+与 ImmortalWrt master 分支 (内核 6.x + mt76 开源驱动) 完全不同。
+CI 需单独适配 wt9103 设备定义，无法复用 c8-668gl。
