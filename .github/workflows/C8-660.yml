@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+
+# NRadio C8-660 专用固件编译 (MT7981/ImmortalWrt)
+name: C8-660
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        CONFIG: [NRADIO-C8-660]
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      WRT_CONFIG: ${{ matrix.CONFIG }}
+      WRT_THEME: aurora
+      WRT_NAME: NRadio-C8-660
+      WRT_SSID: NRadio-WiFi
+      WRT_WORD: password
+      WRT_IP: 192.168.1.1
+      WRT_PW: password
+      WRT_REPO: https://github.com/immortalwrt/immortalwrt
+      WRT_BRANCH: master
+      WRT_SOURCE: immortalwrt

@@ -1,50 +1,20 @@
-# OpenWRT-CI
+# ImmortalWrt-C8-660-CI
 
-官方版：
+NRadio C8-660 (MediaTek MT7981) 专用 ImmortalWrt 固件编译 CI。
 
-https://github.com/immortalwrt/immortalwrt.git
+基于 [immortalwrt/immortalwrt](https://github.com/immortalwrt/immortalwrt) master 分支编译。
 
-自用版：
+## 使用方式
 
-https://github.com/VIKINGYFY/immortalwrt.git
+在 Actions 页面手动触发 `C8-660` 工作流即可编译。
 
-# U-BOOT
+## 目录结构
 
-高通版-沉心：
+- `workflows/` —— CI 工作流配置
+- `Scripts/` —— 编译自定义脚本
+- `Config/` —— 设备与通用配置
 
-https://github.com/chenxin527/uboot-ipq60xx-emmc-build.git
+## 参考
 
-https://github.com/chenxin527/uboot-ipq60xx-nand-build.git
-
-https://github.com/chenxin527/uboot-ipq60xx-nor-build.git
-
-高通版-小猪：
-
-https://github.com/1980490718/u-boot-2016.git
-
-联发科-全新版：
-
-https://github.com/VIKINGYFY/UBOOT-CI/releases
-
-联发科-官方版：
-
-https://drive.wrt.moe/uboot/mediatek
-
-# 固件简要说明
-
-固件每天早上5点自动编译。
-
-固件信息里的时间为编译开始的时间，方便核对上游源码提交时间。
-
-MEDIATEK系列、QUALCOMMAX系列、ROCKCHIP系列、X86系列。
-
-# 目录简要说明
-
-workflows——自定义CI配置
-
-Scripts——自定义脚本
-
-Config——自定义配置
-
-#
-[![Stargazers over time](https://starchart.cc/VIKINGYFY/OpenWRT-CI.svg?variant=adaptive)](https://starchart.cc/VIKINGYFY/OpenWRT-CI)
+- ImmortalWrt 官网: https://immortalwrt.org
+- NRadio 官网: https://www.nradiowifi.com
