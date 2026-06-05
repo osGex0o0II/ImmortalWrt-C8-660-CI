@@ -146,6 +146,12 @@
 				label = "ubi";
 				reg = <0x580000 0x1fa80000>;
 				compatible = "linux,ubi";
+
+				volumes {
+					ubi_rootdisk: ubi-volume-fit {
+						volname = "fit";
+					};
+				};
 			};
 		};
 	};

@@ -106,9 +106,7 @@ jobs:
         run: |
           if [ -d "$GITHUB_WORKSPACE/patches" ]; then
             cp -f $GITHUB_WORKSPACE/patches/*.dts ./wrt/target/linux/mediatek/dts/ 2>/dev/null || true
-            cd ./wrt/ && for PATCH in $GITHUB_WORKSPACE/patches/*.patch; do
-              git apply "$PATCH" 2>/dev/null || echo "Warning: Failed to apply $PATCH"
-            done
+            cat $GITHUB_WORKSPACE/patches/*.mk >> ./wrt/target/linux/mediatek/image/filogic.mk 2>/dev/null || true
           fi
 
       - name: Check Scripts
