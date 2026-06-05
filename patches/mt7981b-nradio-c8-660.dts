@@ -8,6 +8,7 @@
 	compatible = "nradio,c8-660", "mediatek,mt7981";
 
 	aliases {
+		ethernet0 = &gmac0;
 		led-boot = &led_power;
 		led-failsafe = &led_power;
 		led-running = &led_power;
@@ -129,6 +130,18 @@
 				label = "factory";
 				reg = <0x180000 0x180000>;
 				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					macaddr: macaddr@a {
+						compatible = "mac-base";
+						reg = <0xa 0x6>;
+						#nvmem-cell-cells = <1>;
+					};
+				};
 			};
 
 			partition@300000 {
@@ -174,6 +187,8 @@
 		compatible = "mediatek,eth-mac";
 		reg = <0>;
 		phy-mode = "2500base-x";
+		nvmem-cells = <&macaddr 0>;
+		nvmem-cell-names = "mac-address";
 
 		fixed-link {
 			speed = <2500>;
@@ -186,7 +201,14 @@
 		compatible = "mediatek,eth-mac";
 		reg = <1>;
 		phy-mode = "2500base-x";
-		phy-handle = <&phy6>;
+		nvmem-cells = <&macaddr 1>;
+		nvmem-cell-names = "mac-address";
+
+		fixed-link {
+			speed = <2500>;
+			full-duplex;
+			pause;
+		};
 	};
 
 	mdio: mdio-bus {
