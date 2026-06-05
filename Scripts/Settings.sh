@@ -4,13 +4,24 @@
 set -euo pipefail
 
 #移除luci-app-attendedsysupgrade
-sed -i "/attendedsysupgrade/d" $(find ./feeds/luci/collections/ -type f -name "Makefile")
-#修改默认主题
-sed -i "s/luci-theme-bootstrap/luci-theme-$WRT_THEME/g" $(find ./feeds/luci/collections/ -type f -name "Makefile")
+ATTENDED_MAKEFILE=$(find ./feeds/luci/collections/ -type f -name "Makefile" 2>/dev/null | head -1)
+if [ -n "$ATTENDED_MAKEFILE" ]; then
+	sed -i "/attendedsysupgrade/d" "$ATTENDED_MAKEFILE"
+	#修改默认主题
+	sed -i "s/luci-theme-bootstrap/luci-theme-$WRT_THEME/g" "$ATTENDED_MAKEFILE"
+fi
+
 #修改immortalwrt.lan关联IP
-sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js")
+FLASH_JS=$(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js" 2>/dev/null | head -1)
+if [ -n "$FLASH_JS" ]; then
+	sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$FLASH_JS"
+fi
+
 #添加编译日期标识
-sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" $(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js")
+STATUS_JS=$(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js" 2>/dev/null | head -1)
+if [ -n "$STATUS_JS" ]; then
+	sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" "$STATUS_JS"
+fi
 
 WIFI_SH=$(find ./target/linux/mediatek/filogic/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh" 2>/dev/null)
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
@@ -33,10 +44,14 @@ else
 fi
 
 CFG_FILE="./package/base-files/files/bin/config_generate"
-#修改默认IP地址
-sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
-#修改默认主机名
-sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
+if [ -f "$CFG_FILE" ]; then
+	#修改默认IP地址
+	sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
+	#修改默认主机名
+	sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
+else
+	echo "WARNING: $CFG_FILE not found — IP/hostname defaults NOT set." >&2
+fi
 
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config

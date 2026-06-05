@@ -15,17 +15,24 @@ if [ -n "$HP_DIR" ]; then
 
 	rm -rf ./"$HP_PATH"/resources/*
 
-	git clone -q --depth=1 --single-branch --branch "release" "https://github.com/Loyalsoldier/surge-rules.git" ./$HP_RULE/
-	cd ./$HP_RULE/ && RES_VER=$(git log -1 --pretty=format:'%s' | grep -o "[0-9]*" || echo "0")
+	if git clone -q --depth=1 --single-branch --branch "release" \
+		"https://github.com/Loyalsoldier/surge-rules.git" ./$HP_RULE/ 2>/dev/null; then
 
-	echo $RES_VER | tee china_ip4.ver china_ip6.ver china_list.ver gfw_list.ver
-	awk -F, '/^IP-CIDR,/{print $2 > "china_ip4.txt"} /^IP-CIDR6,/{print $2 > "china_ip6.txt"}' cncidr.txt
-	sed 's/^\.//g' direct.txt > china_list.txt ; sed 's/^\.//g' gfw.txt > gfw_list.txt
-	mv -f ./{china_*,gfw_list}.{ver,txt} ../"$HP_PATH"/resources/
+		cd ./$HP_RULE/ && RES_VER=$(git log -1 --pretty=format:'%s' | grep -o "[0-9]*" || echo "0")
 
-	cd .. && rm -rf ./$HP_RULE/
+		echo $RES_VER | tee china_ip4.ver china_ip6.ver china_list.ver gfw_list.ver
+		awk -F, '/^IP-CIDR,/{print $2 > "china_ip4.txt"} /^IP-CIDR6,/{print $2 > "china_ip6.txt"}' cncidr.txt
+		sed 's/^\.//g' direct.txt > china_list.txt ; sed 's/^\.//g' gfw.txt > gfw_list.txt
+		mv -f ./{china_*,gfw_list}.{ver,txt} ../"$HP_PATH"/resources/
 
-	cd "$PKG_PATH" && echo "homeproxy date has been updated!"
+		cd .. && rm -rf ./$HP_RULE/
+		echo "homeproxy date has been updated!"
+	else
+		echo "WARNING: Failed to clone surge-rules — HomeProxy rules NOT preseeded." >&2
+		rm -rf ./$HP_RULE/ 2>/dev/null || true
+	fi
+
+	cd "$PKG_PATH"
 fi
 
 #修改aurora菜单式样

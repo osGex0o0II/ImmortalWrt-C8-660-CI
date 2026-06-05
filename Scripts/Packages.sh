@@ -68,7 +68,12 @@ UPDATE_VERSION() {
 
 	for PKG_FILE in $PKG_FILES; do
 		local PKG_REPO=$(grep -Po "PKG_SOURCE_URL:=https://.*github.com/\K[^/]+/[^/]+(?=.*)" $PKG_FILE)
-		local PKG_TAG=$(curl -sL "https://api.github.com/repos/$PKG_REPO/releases" | jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name")
+		local PKG_TAG=$(curl -fsSL "https://api.github.com/repos/$PKG_REPO/releases" 2>/dev/null | jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name" 2>/dev/null || true)
+
+		if [ -z "$PKG_TAG" ] || [ "$PKG_TAG" = "null" ]; then
+			echo "WARNING: Failed to fetch $PKG_NAME release tag — skipping version check" >&2
+			continue
+		fi
 
 		local OLD_VER=$(grep -Po "PKG_VERSION:=\K.*" "$PKG_FILE")
 		local OLD_URL=$(grep -Po "PKG_SOURCE_URL:=\K.*" "$PKG_FILE")
@@ -79,13 +84,17 @@ UPDATE_VERSION() {
 
 		local NEW_VER=$(echo $PKG_TAG | sed -E 's/[^0-9]+/\./g; s/^\.|\.$//g')
 		local NEW_URL=$(echo $PKG_URL | sed "s/\$(PKG_VERSION)/$NEW_VER/g; s/\$(PKG_NAME)/$PKG_NAME/g")
-		local NEW_HASH=$(curl -sL "$NEW_URL" | sha256sum | cut -d ' ' -f 1)
+		local NEW_HASH=$(curl -fsSL "$NEW_URL" 2>/dev/null | sha256sum | cut -d ' ' -f 1 || true)
+
+		if [ -z "$NEW_HASH" ]; then
+			echo "WARNING: Failed to download $PKG_NAME archive for hashing — skipping" >&2
+			continue
+		fi
 
 		echo "old version: $OLD_VER $OLD_HASH"
 		echo "new version: $NEW_VER $NEW_HASH"
 
-		if [[ "$NEW_VER" =~ ^[0-9].* ]] && [ "$(printf '%s
-' "$OLD_VER" "$NEW_VER" | sort -V | head -1)" != "$NEW_VER" ]; then
+		if [[ "$NEW_VER" =~ ^[0-9].* ]] && [ "$(printf '%s\n' "$OLD_VER" "$NEW_VER" | sort -V | head -1)" != "$NEW_VER" ]; then
 			sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$NEW_VER/g" "$PKG_FILE"
 			sed -i "s/PKG_HASH:=.*/PKG_HASH:=$NEW_HASH/g" "$PKG_FILE"
 			echo "$PKG_FILE version has been updated!"
