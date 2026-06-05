@@ -17,7 +17,8 @@
 
 	chosen {
 		stdout-path = "serial0:115200n1";
-		bootargs = "console=ttyS0,115200n1";
+		bootargs = "console=ttyS0,115200n1 root=/dev/fit0 rootwait";
+		rootdisk = <&ubi_rootdisk>;
 	};
 
 	gpio-keys {
