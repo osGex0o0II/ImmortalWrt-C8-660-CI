@@ -189,7 +189,16 @@ jobs:
         run: |
           cd ./wrt/
 
-          make -j$(nproc) || make -j1 V=s
+          set -o pipefail
+          make -j$(nproc) V=s 2>&1 | tee build.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo ""
+            echo "========================================"
+            echo "=== BUILD FAILED — LAST 50 ERRORS ==="
+            echo "========================================"
+            grep -iE 'error|conflict|failed|No such|No rule|cannot|denied' build.log | tail -50
+            exit 1
+          fi
 
       - name: Machine Information
         run: |
