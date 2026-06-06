@@ -23,21 +23,28 @@ inject_case() {
 	fi
 	if grep -q "$MARKER" "$FILE"; then
 		log "ALREADY PATCHED: $FILE"
-		return 0
+	else
+		local SNIPPET_CONTENT
+		SNIPPET_CONTENT="$(cat "$SNIPPET")"
+
+		if awk -v snippet="$SNIPPET_CONTENT" '
+			/^esac$/ && !done {
+				print snippet
+				done = 1
+			}
+			{ print }
+		' "$FILE" > "$FILE.tmp"; then
+			mv "$FILE.tmp" "$FILE"
+			log "PATCHED: $FILE"
+		else
+			rm -f "$FILE.tmp"
+			log "FAILED: $FILE"
+			return 1
+		fi
 	fi
 
-	local SNIPPET_CONTENT
-	SNIPPET_CONTENT="$(cat "$SNIPPET")"
-
-	awk -v snippet="$SNIPPET_CONTENT" '
-		/^esac$/ && !done {
-			print snippet
-			done = 1
-		}
-		{ print }
-	' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
-
-	log "PATCHED: $FILE"
+	log "DIAGNOSTIC tail of $FILE:"
+	tail -15 "$FILE" | sed 's/^/    /'
 }
 
 log "Apply Patches"
