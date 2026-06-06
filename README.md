@@ -78,6 +78,23 @@ WiFi 校准数据依赖 factory 分区 EEPROM，mt76 驱动偏移可能与原厂
 
 救砖资源：NRadio 官方技术支持 / 官方救援 TFTP 服务器。
 
+## mainline 集成说明
+
+ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支持**。本项目通过 `Scripts/Patches.sh` 在编译时自动注入以下补丁：
+
+- `patches/mt7981b-nradio-c8-660.dts` — 完整设备树（基于 hanwckf -512m 改写）
+- `patches/filogic-c8-660.mk` — 设备定义追加到 `filogic.mk`
+- `patches/01_leds.snippet` — 注入 5G/WiFi/电源 LED 行为
+- `patches/11_fix_wifi_mac.snippet` — 注入从 `bdinfo` 分区读取 MAC 并修复 WiFi MAC
+
+## 社区相关项目
+
+- [hanwckf/immortalwrt-mt798x](https://github.com/hanwckf/immortalwrt-mt798x) — SDK 5.4 + nmbm 内核，包含 C8-660（512M）原始 DTS 与 mt7981.mk
+- [openwrt/openwrt PR #17093](https://github.com/openwrt/openwrt/pull/17093) — 官方 C8-668GL 支持（eMMC 板，仅供参考）
+- [newton-miku/luci-app-cellscan](https://github.com/newton-miku/luci-app-cellscan) — C8-660/668 专用基站扫描插件（已预装）
+- [tltv1212/Nradio-Firmware-Selector](https://github.com/tltv1212/Nradio-Firmware-Selector) — NRadio 鲲鹏 C8 系列固件下载列表
+- [duhaoyang520-collab/bl-mt7981](https://github.com/duhaoyang520-collab/bl-mt7981) — ATF / U-Boot 编译工具（救砖参考）
+
 ## 使用流程
 
 1. GitHub Actions 触发 `ImmortalWrt NRadio C8-660` 工作流

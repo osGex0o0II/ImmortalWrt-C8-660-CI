@@ -70,12 +70,7 @@ jobs:
 
       - name: Apply Patches
         run: |
-          if [ -d "$GITHUB_WORKSPACE/patches" ]; then
-            echo "=== APPLYING PATCHES ==="
-            cp -vf $GITHUB_WORKSPACE/patches/*.dts ./wrt/target/linux/mediatek/dts/ 2>/dev/null || true
-            cat $GITHUB_WORKSPACE/patches/*.mk >> ./wrt/target/linux/mediatek/image/filogic.mk 2>/dev/null || true
-            echo "=== PATCHES APPLIED ==="
-          fi
+          bash $GITHUB_WORKSPACE/Scripts/Patches.sh ./wrt/
 
       - name: Verify DTS
         run: |
