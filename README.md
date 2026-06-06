@@ -32,12 +32,8 @@ NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 | 插件 | 说明 |
 |------|------|
 | luci-theme-aurora | Aurora 主题 |
-| homeproxy | 科学上网代理（预置 Loyalsoldier/surge-rules） |
-| luci-app-mosdns | DNS 分流 |
-| luci-app-diskman | 磁盘管理 |
+| luci-app-aurora-config | Aurora 主题配置 |
 | luci-app-partexp | 分区扩容 |
-| luci-app-tailscale | Tailscale VPN |
-| sing-box | 代理内核（版本自动更新） |
 
 ## 内核模块
 

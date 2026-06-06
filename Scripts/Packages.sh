@@ -44,15 +44,8 @@ UPDATE_PACKAGE() {
 UPDATE_PACKAGE "aurora" "eamonxg/luci-theme-aurora" "master"
 UPDATE_PACKAGE "aurora-config" "eamonxg/luci-app-aurora-config" "master"
 
-# 代理
-UPDATE_PACKAGE "homeproxy" "VIKINGYFY/homeproxy" "main"
-
 # 插件
-UPDATE_PACKAGE "luci-app-tailscale" "asvow/luci-app-tailscale" "main"
-UPDATE_PACKAGE "diskman" "sbwml/luci-app-diskman" "main"
-UPDATE_PACKAGE "mosdns" "sbwml/luci-app-mosdns" "v5" "" "v2dat"
 UPDATE_PACKAGE "partexp" "sirpdboy/luci-app-partexp" "main"
-UPDATE_PACKAGE "luci-app-cellscan" "newton-miku/luci-app-cellscan" "main"
 
 #更新软件包版本
 UPDATE_VERSION() {
@@ -104,8 +97,6 @@ UPDATE_VERSION() {
 		fi
 	done
 }
-
-UPDATE_VERSION "sing-box"
 
 #引入私有扩展脚本
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
