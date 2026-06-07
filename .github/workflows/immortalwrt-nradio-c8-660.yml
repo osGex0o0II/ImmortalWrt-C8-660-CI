@@ -119,15 +119,13 @@ jobs:
         run: |
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           if [ -d "./wrt/staging_dir" ]; then
-            touch ./wrt/.config
-            cd ./wrt/ && make clean -j$(nproc)
-            find "./staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
-              find "$DIR" -type f -exec touch {} +
+            cd ./wrt/
+            rm -rf build_dir staging_dir/target* tmp 2>/dev/null || true
+            mkdir -p tmp && echo "1" > tmp/.build
+            find "staging_dir" -type d -name "stamp" -not -path "*target*" 2>/dev/null | while read -r DIR; do
+              find "$DIR" -type f -exec touch {} + 2>/dev/null || true
             done
-
-            mkdir -p ./tmp && echo "1" > ./tmp/.build
-
-            echo "toolchain skipped!"
+            echo "toolchain clean done!"
           else
             echo "caches missed!"
           fi
