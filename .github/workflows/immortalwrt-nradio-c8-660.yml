@@ -85,7 +85,6 @@ jobs:
           grep -q "nradio_c8-660" ./wrt/target/linux/mediatek/image/filogic.mk && echo "OK: Device added to filogic.mk" || echo "WARN: Device NOT in filogic.mk"
 
       - name: Check Scripts
-        if: failure()
         run: |
           find ./ -maxdepth 3 -type f -iname "*.sh" -exec dos2unix {} \; -exec chmod +x {} \;
           find ./ -maxdepth 3 -type f -iname "*.txt" -exec dos2unix {} \;
