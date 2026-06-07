@@ -24,20 +24,23 @@ inject_case() {
 	if grep -q "$MARKER" "$FILE"; then
 		log "ALREADY PATCHED: $FILE"
 	else
-		local SNIPPET_CONTENT
-		SNIPPET_CONTENT="$(cat "$SNIPPET")"
+		SNIPPET_TMP="$(mktemp)"
+		cat "$SNIPPET" > "$SNIPPET_TMP"
 
-		if awk -v snippet="$SNIPPET_CONTENT" '
+		if awk '
 			/^esac$/ && !done {
-				print snippet
+				while ((getline line < snippet_file) > 0)
+					print line
+				close(snippet_file)
 				done = 1
 			}
 			{ print }
-		' "$FILE" > "$FILE.tmp"; then
+		' snippet_file="$SNIPPET_TMP" "$FILE" > "$FILE.tmp"; then
 			mv "$FILE.tmp" "$FILE"
+			rm -f "$SNIPPET_TMP"
 			log "PATCHED: $FILE"
 		else
-			rm -f "$FILE.tmp"
+			rm -f "$FILE.tmp" "$SNIPPET_TMP"
 			log "FAILED: $FILE"
 			return 1
 		fi
@@ -58,7 +61,7 @@ fi
 
 for MK in "$PATCHES_DIR"/*.mk; do
 	[ -f "$MK" ] || continue
-	cat "$MK" >> "$WRT_DIR/target/linux/mediatek/image/filogic.mk"
+	grep -q "nradio_c8-660" "$WRT_DIR/target/linux/mediatek/image/filogic.mk" 2>/dev/null || cat "$MK" >> "$WRT_DIR/target/linux/mediatek/image/filogic.mk"
 done
 
 LED_FILE="$WRT_DIR/target/linux/mediatek/filogic/base-files/etc/board.d/01_leds"

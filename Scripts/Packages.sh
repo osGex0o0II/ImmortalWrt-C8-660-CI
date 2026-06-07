@@ -78,7 +78,7 @@ UPDATE_VERSION() {
 
 		local NEW_VER=$(echo $PKG_TAG | sed -E 's/[^0-9]+/\./g; s/^\.|\.$//g')
 		local NEW_URL=$(echo $PKG_URL | sed "s/\$(PKG_VERSION)/$NEW_VER/g; s/\$(PKG_NAME)/$PKG_NAME/g")
-		local NEW_HASH=$(curl -fsSL "$NEW_URL" 2>/dev/null | sha256sum | cut -d ' ' -f 1 || true)
+		local NEW_HASH=$(curl -fsSL "$NEW_URL" 2>/dev/null | shasum -a 256 | cut -d ' ' -f 1 || true)
 
 		if [ -z "$NEW_HASH" ]; then
 			echo "WARNING: Failed to download $PKG_NAME archive for hashing — skipping" >&2

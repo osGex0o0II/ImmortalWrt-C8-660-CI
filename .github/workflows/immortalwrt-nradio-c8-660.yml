@@ -17,9 +17,9 @@ env:
   WRT_THEME: aurora
   WRT_NAME: NRadio-C8-660
   WRT_SSID: NRadio-WiFi
-  WRT_WORD: password
+  WRT_WORD: ${{ secrets.WRT_WORD || 'password' }}
   WRT_IP: 192.168.1.1
-  WRT_PW: password
+  WRT_PW: ${{ secrets.WRT_PW || 'password' }}
   WRT_REPO: https://github.com/immortalwrt/immortalwrt
   WRT_BRANCH: master
   WRT_SOURCE: immortalwrt
@@ -36,7 +36,7 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo -E apt -yqq purge firefox
+          sudo -E apt -yqq purge firefox 2>/dev/null || true
           sudo -E apt -yqq update
           sudo -E apt -yqq full-upgrade
           sudo -E apt -yqq autoremove --purge
@@ -114,7 +114,7 @@ jobs:
           fi
 
           if ${{steps.check-cache.outputs.cache-hit != 'true'}}; then
-            CACHE_LIST=$(gh cache list --key "$WRT_CONFIG-$WRT_INFO" | cut -f 1)
+            CACHE_LIST=$(gh cache list --key "$WRT_CONFIG-$WRT_INFO" --limit 100 | cut -f 1)
             for CACHE_KEY in $CACHE_LIST; do
               gh cache delete $CACHE_KEY
             done

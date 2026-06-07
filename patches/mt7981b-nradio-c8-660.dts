@@ -197,19 +197,19 @@
 		};
 	};
 
-		gmac1: mac@1 {
-			compatible = "mediatek,eth-mac";
-			reg = <1>;
-			phy-mode = "2500base-x";
-			nvmem-cells = <&macaddr 1>;
-			nvmem-cell-names = "mac-address";
+	gmac1: mac@1 {
+		compatible = "mediatek,eth-mac";
+		reg = <1>;
+		phy-mode = "2500base-x";
+		nvmem-cells = <&macaddr 1>;
+		nvmem-cell-names = "mac-address";
 
-			fixed-link {
-				speed = <2500>;
-				full-duplex;
-				pause;
-			};
+		fixed-link {
+			speed = <2500>;
+			full-duplex;
+			pause;
 		};
+	};
 	mdio: mdio-bus {
 		#address-cells = <1>;
 		#size-cells = <0>;
