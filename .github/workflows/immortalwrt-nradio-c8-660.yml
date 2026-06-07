@@ -7,9 +7,7 @@ name: ImmortalWrt NRadio C8-660
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-  actions: write
+permissions: {}
 
 env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
@@ -104,6 +102,8 @@ jobs:
             ./wrt/dl
 
       - name: Update Caches
+        permissions:
+          actions: write
         run: |
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           if [ -d "./wrt/staging_dir" ]; then
@@ -156,7 +156,6 @@ jobs:
 
       - name: Custom Packages
         run: |
-          set -x
           trap 'echo "::error::Failed at line $LINENO with exit $?" >&2' ERR
 
           cd ./wrt/package/ || { echo "::error::cd ./wrt/package/ failed" >&2; exit 1; }
@@ -181,18 +180,18 @@ jobs:
             exit 1
           fi
 
-      - name: Check Disk Space
-        run: |
-          echo "=== DISK SPACE BEFORE BUILD ==="
-          df -h
-          echo "=== TOP 10 LARGE DIRS ==="
-          du -sh ./wrt/* 2>/dev/null | sort -rh | head -10
-
       - name: Download Packages
         run: |
           cd ./wrt/
 
           make download -j$(nproc)
+
+      - name: Check Disk Space
+        run: |
+          echo "=== DISK SPACE AFTER DOWNLOAD ==="
+          df -h
+          echo "=== TOP 10 LARGE DIRS ==="
+          du -sh ./wrt/* 2>/dev/null | sort -rh | head -10
 
       - name: Compile Firmware
         timeout-minutes: 300
@@ -268,6 +267,8 @@ jobs:
           echo "WRT_WORD_DISPLAY=${WRT_WORD:-（无密码，开放）}" >> $GITHUB_ENV
 
       - name: Release Firmware
+        permissions:
+          contents: write
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}

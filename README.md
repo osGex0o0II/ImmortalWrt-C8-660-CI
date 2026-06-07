@@ -86,7 +86,7 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 ## 社区相关项目
 
 - [hanwckf/immortalwrt-mt798x](https://github.com/hanwckf/immortalwrt-mt798x) — SDK 5.4 + nmbm 内核，包含 C8-660（512M）原始 DTS 与 mt7981.mk
-- [openwrt/openwrt PR #17093](https://github.com/openwrt/openwrt/pull/17093) — 官方 C8-668GL 支持（eMMC 板，仅供参考）
+- [openwrt/openwrt PR #17093](https://github.com/openwrt/openwrt/pull/17093) — 官方 C8-668GL（eMMC 版，8GB 闪存，⚠ 非 C8-660 的 SPI-NAND 硬件，仅供参考）
 - [newton-miku/luci-app-cellscan](https://github.com/newton-miku/luci-app-cellscan) — C8-660/668 专用基站扫描插件（可手动安装）
 - [tltv1212/Nradio-Firmware-Selector](https://github.com/tltv1212/Nradio-Firmware-Selector) — NRadio 鲲鹏 C8 系列固件下载列表
 - [duhaoyang520-collab/bl-mt7981](https://github.com/duhaoyang520-collab/bl-mt7981) — ATF / U-Boot 编译工具（救砖参考）
