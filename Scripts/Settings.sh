@@ -8,7 +8,7 @@ ATTENDED_MAKEFILE=$(find ./feeds/luci/collections/ -type f -name "Makefile" 2>/d
 if [ -n "$ATTENDED_MAKEFILE" ]; then
 	sed -i "/attendedsysupgrade/d" "$ATTENDED_MAKEFILE"
 	#修改默认主题
-	sed -i "s/luci-theme-bootstrap/luci-theme-$WRT_THEME/g" "$ATTENDED_MAKEFILE"
+	sed -i "s|luci-theme-bootstrap|luci-theme-$WRT_THEME|g" "$ATTENDED_MAKEFILE"
 fi
 
 #修改immortalwrt.lan关联IP
