@@ -43,6 +43,7 @@ jobs:
           sudo -E apt -yqq autoclean
           sudo -E apt -yqq clean
           sudo -E apt -yqq install dos2unix libfuse-dev
+          sudo -E apt -yqq install -y git curl wget file jq unzip
           curl -fsSL "https://build-scripts.immortalwrt.org/init_build_environment.sh" -o /tmp/init_build_env.sh
           sudo bash /tmp/init_build_env.sh
           sudo -E systemctl daemon-reload
@@ -133,12 +134,30 @@ jobs:
             ./scripts/feeds install -a
           fi
 
+      - name: Debug Custom Packages
+        run: |
+          echo "=== PWD ===" && pwd
+          echo "=== WRT Root ===" && ls -la ./wrt/ | head -20
+          echo "=== Package Dir ===" && ls -la ./wrt/package/ 2>&1 | head -20
+          echo "=== Feeds ===" && ls ./wrt/feeds/ 2>&1
+          echo "=== Scripts ===" && ls -la "$GITHUB_WORKSPACE/Scripts/"
+          [ -f "$GITHUB_WORKSPACE/Scripts/Packages.sh" ] && echo "OK: Packages.sh EXISTS" || echo "ERR: Packages.sh MISSING"
+          [ -x "$GITHUB_WORKSPACE/Scripts/Packages.sh" ] && echo "OK: Packages.sh EXECUTABLE" || echo "ERR: Packages.sh NOT EXECUTABLE"
+          echo "=== Git ===" && git --version
+          echo "=== jq ===" && jq --version 2>&1
+          echo "=== Network ===" && curl -fsSL -o /dev/null -w "github.com:%{http_code}\n" https://github.com/eamonxg/luci-theme-aurora 2>&1
+
       - name: Custom Packages
         run: |
-          cd ./wrt/package/
+          set -x
+          trap 'echo "::error::Failed at line $LINENO with exit $?" >&2' ERR
 
-          $GITHUB_WORKSPACE/Scripts/Packages.sh
-          $GITHUB_WORKSPACE/Scripts/Handles.sh
+          cd ./wrt/package/ || { echo "::error::cd ./wrt/package/ failed" >&2; exit 1; }
+
+          {
+            $GITHUB_WORKSPACE/Scripts/Packages.sh
+            $GITHUB_WORKSPACE/Scripts/Handles.sh
+          } 2>&1 | tee /tmp/packages.log
 
       - name: Custom Settings
         run: |
@@ -187,11 +206,21 @@ jobs:
 
       - name: Upload Build Log
         if: failure()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: build-log-${{env.WRT_CONFIG}}
           path: ./wrt/build.log
           retention-days: 3
+          if-no-files-found: warn
+
+      - name: Upload Packages Debug
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: packages-debug-${{env.WRT_CONFIG}}
+          path: /tmp/packages.log
+          retention-days: 3
+          if-no-files-found: warn
 
       - name: Machine Information
         run: |
