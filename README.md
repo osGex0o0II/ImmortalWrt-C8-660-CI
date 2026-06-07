@@ -37,14 +37,14 @@ NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 
 ## 内核模块
 
-bonding, fuse, mtd-rw, nf-nat6, nft-core/fullcone/offload/queue/socket/tproxy,
-tun, veth, wireguard, usb-core, usb-net, usb-net-qmi-wwan-quectel,
+fuse, mtd-rw, nf-nat6, nft-core/fullcone/offload/queue/socket/tproxy,
+tun, usb-core, usb-net, usb-net-qmi-wwan-quectel,
 usb-storage/extras/uas
 
 ## 系统工具
 
-autocore, automount, blkid, cfdisk, cpufreq, curl, htop, iperf3,
-ip-full, lsblk, openssh-keygen/sftp-server, wireguard-tools 等
+autocore, automount, blkid, cpufreq, curl, htop, 
+ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 
 ## 编译信息
 
