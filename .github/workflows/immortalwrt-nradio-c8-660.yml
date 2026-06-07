@@ -254,6 +254,11 @@ jobs:
 
           find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
 
+      - name: Prepare Release Info
+        run: |
+          echo "WRT_PW_DISPLAY=${WRT_PW:-（无）}" >> $GITHUB_ENV
+          echo "WRT_WORD_DISPLAY=${WRT_WORD:-（无密码，开放）}" >> $GITHUB_ENV
+
       - name: Release Firmware
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
@@ -269,10 +274,10 @@ jobs:
             平台：${{env.WRT_TARGET}} / 配置：${{env.WRT_CONFIG}}
 
             登录地址：${{env.WRT_IP}}
-            登录密码：${{ env.WRT_PW || "（无）" }}
+            登录密码：${{env.WRT_PW_DISPLAY}}
 
             WIFI名称：${{env.WRT_SSID}}
-            WIFI密码：${{ env.WRT_WORD || "（无密码，开放）" }}
+            WIFI密码：${{env.WRT_WORD_DISPLAY}}
 
             内核版本：${{env.WRT_KVER}}
             插件列表：${{env.WRT_LIST}}
