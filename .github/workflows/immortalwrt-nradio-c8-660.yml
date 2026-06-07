@@ -25,6 +25,13 @@ env:
   WRT_BRANCH: master
 
 jobs:
+  skip-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip Push
+        run: echo "✅ Push 检测 — 编译仅通过 workflow_dispatch 触发"
+
   build:
     if: github.event_name == 'workflow_dispatch'
     name: immortalwrt-c8-660
