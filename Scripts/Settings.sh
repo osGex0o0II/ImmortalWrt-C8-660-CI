@@ -73,3 +73,27 @@ if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then
 	echo "Applying private configurations from PRIVATE.txt..."
 	cat $GITHUB_WORKSPACE/Config/PRIVATE.txt >> ./.config
 fi
+
+# === mt76 WiFi 性能优化 ===
+
+# WED 启用（硬件 WiFi offload，MT7981 + MT7915E 支持）
+if [ -d "./package/kernel/mt76" ]; then
+	MT76_DIR=$(find ./package/kernel/mt76 -type d -name "mt7915e" 2>/dev/null | head -1)
+	if [ -n "$MT76_DIR" ]; then
+		echo "options mt7915e wed_enable=Y" > "$MT76_DIR/mt7915e.conf"
+		echo "mt76 WED enabled (hardware offload)"
+	fi
+fi
+
+# 网络栈 buffer 优化
+mkdir -p ./package/base-files/files/etc/sysctl.d
+cat > ./package/base-files/files/etc/sysctl.d/90-wifi-tune.conf << 'SYSCTL'
+# mt76 WiFi 网络栈优化
+net.core.rmem_default=262144
+net.core.wmem_default=262144
+net.core.rmem_max=4194304
+net.core.wmem_max=4194304
+net.core.netdev_budget=600
+net.core.netdev_budget_usecs=8000
+SYSCTL
+echo "Network stack tuning applied"
