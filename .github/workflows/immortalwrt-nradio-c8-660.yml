@@ -36,6 +36,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     name: immortalwrt-c8-660
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
     steps:
       - name: Checkout Projects
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
@@ -113,8 +116,6 @@ jobs:
             ./wrt/dl
 
       - name: Update Caches
-        permissions:
-          actions: write
         run: |
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           if [ -d "./wrt/staging_dir" ]; then
@@ -278,8 +279,6 @@ jobs:
           echo "WRT_WORD_DISPLAY=${WRT_WORD:-（无密码，开放）}" >> $GITHUB_ENV
 
       - name: Release Firmware
-        permissions:
-          contents: write
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
