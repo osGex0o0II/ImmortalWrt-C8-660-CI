@@ -91,6 +91,31 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 - [tltv1212/Nradio-Firmware-Selector](https://github.com/tltv1212/Nradio-Firmware-Selector) — NRadio 鲲鹏 C8 系列固件下载列表
 - [duhaoyang520-collab/bl-mt7981](https://github.com/duhaoyang520-collab/bl-mt7981) — ATF / U-Boot 编译工具（救砖参考）
 
+## 高级特性
+
+本项目在标准 ImmortalWrt 编译流程基础上，增加了以下优化：
+
+| 特性 | 说明 | 配置位置 |
+|------|------|----------|
+| WED 硬件加速 | MT7981 内置 WiFi→Ethernet 硬件 offload，吞吐量 +20-40%，CPU 占用 -30% | `Scripts/Settings.sh` |
+| SQM/CAKE QoS | 智能队列管理，消除 bufferbloat，降低游戏/VoIP 延迟 | `Config/GENERAL.txt` |
+| 网络栈调优 | TCP/UDP buffer 扩大 + NAPI 轮询参数优化 | `Scripts/Settings.sh` |
+| 第三方包锁定 | 通过 `PKG_LOCK_<name>_COMMIT` 环境变量锁定包版本 | `Scripts/Packages.sh` |
+| SHA256 脚本校验 | `init_build_environment.sh` 可选完整性校验（`INIT_BUILD_EXPECTED_SHA256` secret） | `.github/workflows` |
+| 旧设备兼容 | `SUPPORTED_DEVICES nradio,wt9103` 支持旧 DTS 名称升级 | `patches/filogic-c8-660.mk` |
+| CCache 加速 | 编译缓存自动持久化，增量编译时间 -50% | `.github/workflows` |
+| 自定义扩展 | `Scripts/PRIVATE.sh` + `Config/PRIVATE.txt` 可选私有配置（gitignored） | `Scripts/`, `Config/` |
+
+### 环境变量参考
+
+| 变量 | 用途 | 示例 |
+|------|------|------|
+| `PKG_LOCK_aurora_COMMIT` | 锁定 luci-theme-aurora 版本 | `abc123def` |
+| `PKG_LOCK_partexp_COMMIT` | 锁定 luci-app-partexp 版本 | `deadbeef` |
+| `INIT_BUILD_EXPECTED_SHA256` | 校验构建环境脚本完整性 | `sha256sum` 输出 |
+| `WRT_WORD` (secret) | WiFi 密码（空=开放） | `MyPassword` |
+| `WRT_PW` (secret) | 登录密码（空=无密码） | `MyPassword` |
+
 ## 使用流程
 
 1. GitHub Actions 手动触发 `ImmortalWrt NRadio C8-660` 工作流（`workflow_dispatch`）
