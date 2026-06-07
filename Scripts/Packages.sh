@@ -4,6 +4,10 @@
 set -euo pipefail
 
 #安装和更新软件包
+# 环境变量锁定支持:
+#   PKG_LOCK_<name>_COMMIT   — 锁定到指定 commit SHA
+#   PKG_LOCK_<name>_BRANCH   — 覆盖默认分支
+# 示例: PKG_LOCK_aurora_COMMIT=abc123def
 UPDATE_PACKAGE() {
 	local PKG_NAME=$1
 	local PKG_REPO=$2
@@ -12,7 +16,14 @@ UPDATE_PACKAGE() {
 	local PKG_LIST=("$PKG_NAME" $5)  # 第5个参数为自定义名称列表
 	local REPO_NAME=${PKG_REPO#*/}
 
+	# 检查是否有环境变量覆盖
+	local LOCK_VAR="PKG_LOCK_${PKG_NAME//-/_}_COMMIT"
+	local BRANCH_VAR="PKG_LOCK_${PKG_NAME//-/_}_BRANCH"
+	local LOCKED_COMMIT="${!LOCK_VAR:-}"
+	local LOCKED_BRANCH="${!BRANCH_VAR:-$PKG_BRANCH}"
+
 	echo " "
+	echo "Package: $PKG_NAME (repo: $PKG_REPO, branch: $LOCKED_BRANCH)"
 
 	# 删除本地可能存在的不同名称的软件包
 	for NAME in "${PKG_LIST[@]}"; do
@@ -31,11 +42,18 @@ UPDATE_PACKAGE() {
 		fi
 	done
 
-	# 克隆 GitHub 仓库
 	# 克隆 GitHub 仓库（含重试）
 	for i in 1 2 3; do
-		git clone --depth=1 --single-branch --branch "$PKG_BRANCH" "https://github.com/$PKG_REPO.git" && break || sleep 10
+		git clone --depth=1 --single-branch --branch "$LOCKED_BRANCH" "https://github.com/$PKG_REPO.git" && break || sleep 10
 	done
+
+	# 如果设置了锁定 commit，checkout 到该 commit
+	if [ -n "$LOCKED_COMMIT" ]; then
+		cd "$REPO_NAME" 2>/dev/null || cd "$PKG_NAME" 2>/dev/null || true
+		git fetch --unshallow 2>/dev/null || true
+		git checkout "$LOCKED_COMMIT" || echo "::warning::Failed to checkout $PKG_NAME commit $LOCKED_COMMIT"
+		cd ..
+	fi
 
 	# 处理克隆的仓库
 	if [[ "$PKG_SPECIAL" == "name" ]]; then

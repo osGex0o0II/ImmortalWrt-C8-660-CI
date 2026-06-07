@@ -22,7 +22,6 @@ env:
   WRT_PW: ${{ secrets.WRT_PW || '' }}
   WRT_REPO: https://github.com/immortalwrt/immortalwrt
   WRT_BRANCH: master
-  WRT_SOURCE: immortalwrt
 
 jobs:
   build:
@@ -39,7 +38,16 @@ jobs:
           sudo -E apt -yqq purge firefox 2>/dev/null || true
           sudo -E apt -yqq update && sudo -E apt -yqq full-upgrade && sudo -E apt -yqq install -y dos2unix libfuse-dev git curl wget file jq unzip && sudo -E apt -yqq autoremove --purge && sudo -E apt -yqq autoclean
           curl -fsSL --retry 3 "https://build-scripts.immortalwrt.org/init_build_environment.sh" -o /tmp/init_build_env.sh
-          echo "init_build_env.sh SHA256: $(sha256sum /tmp/init_build_env.sh | cut -d -f1)"
+          echo "init_build_env.sh SHA256: $(sha256sum /tmp/init_build_env.sh | cut -d' ' -f1)"
+          if [ -n "${INIT_BUILD_EXPECTED_SHA256:-}" ]; then
+            echo "$INIT_BUILD_EXPECTED_SHA256 /tmp/init_build_env.sh" | sha256sum -c --status || {
+              echo "::error::init_build_env.sh SHA256 MISMATCH — refusing to run"
+              exit 1
+            }
+            echo "init_build_env.sh SHA256 verified ✓"
+          else
+            echo "::warning::INIT_BUILD_EXPECTED_SHA256 not set — running unverified script"
+          fi
           sudo bash /tmp/init_build_env.sh
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
@@ -52,7 +60,7 @@ jobs:
         run: |
           echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
-          echo "WRT_INFO=${WRT_SOURCE%%/*}" >> $GITHUB_ENV
+          echo "WRT_INFO=immortalwrt" >> $GITHUB_ENV
           echo "WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' ./Config/$WRT_CONFIG.txt)" >> $GITHUB_ENV
           echo "WRT_WIFI=wifi-yes" >> $GITHUB_ENV
           echo "WRT_KVER=none" >> $GITHUB_ENV
@@ -77,6 +85,7 @@ jobs:
           grep -q "nradio_c8-660" ./wrt/target/linux/mediatek/image/filogic.mk && echo "OK: Device added to filogic.mk" || echo "WARN: Device NOT in filogic.mk"
 
       - name: Check Scripts
+        if: failure()
         run: |
           find ./ -maxdepth 3 -type f -iname "*.sh" -exec dos2unix {} \; -exec chmod +x {} \;
           find ./ -maxdepth 3 -type f -iname "*.txt" -exec dos2unix {} \;
@@ -130,6 +139,7 @@ jobs:
           fi
 
       - name: Debug Custom Packages
+        if: failure()
         run: |
           echo "=== PWD ===" && pwd
           echo "=== WRT Root ===" && ls -la ./wrt/ | head -20
@@ -218,6 +228,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Machine Information
+        if: failure()
         run: |
           cd ./wrt/
 

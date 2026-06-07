@@ -93,10 +93,17 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 
 ## 使用流程
 
-1. GitHub Actions 触发 `ImmortalWrt NRadio C8-660` 工作流
+1. GitHub Actions 手动触发 `ImmortalWrt NRadio C8-660` 工作流（`workflow_dispatch`）
 2. 下载产物 `factory.bin`（首次刷入）或 `sysupgrade.itb`（同主版本升级）
 3. U-Boot TFTP 模式下刷入 `factory.bin`
 4. 启动后浏览器访问 192.168.1.1
+
+### 环境说明
+
+- CI 运行于 `ubuntu-latest` (GitHub Actions)，脚本针对 Linux (GNU sed/coreutils) 编写
+- 本地调试需在 Linux 环境或 WSL 中进行，macOS 的 BSD sed 语法不兼容
+- 第三方包可通过环境变量锁定版本，见 `Scripts/Packages.sh` 注释
+- `init_build_environment.sh` 可通过 `INIT_BUILD_EXPECTED_SHA256` secret 校验完整性
 
 ## 目录结构
 
