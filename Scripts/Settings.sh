@@ -28,17 +28,23 @@ WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
 if [ -f "$WIFI_SH" ]; then
 	#修改WIFI名称
 	sed -i "s/BASE_SSID='.*'/BASE_SSID='$WRT_SSID'/g" $WIFI_SH
-	#修改WIFI密码
-	sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" $WIFI_SH
+	if [ -n "$WRT_WORD" ]; then
+		sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" $WIFI_SH
+	else
+		sed -i "s/BASE_WORD='.*'/BASE_WORD=''/g" $WIFI_SH
+	fi
 elif [ -f "$WIFI_UC" ]; then
 	#修改WIFI名称
 	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" $WIFI_UC
-	#修改WIFI密码
-	sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
 	#修改WIFI地区
 	sed -i "s/country='.*'/country='CN'/g" $WIFI_UC
-	#修改WIFI加密
-	sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" $WIFI_UC
+	if [ -n "$WRT_WORD" ]; then
+		sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
+		sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" $WIFI_UC
+	else
+		sed -i "/key=/d" $WIFI_UC
+		sed -i "s/encryption='.*'/encryption='none'/g" $WIFI_UC
+	fi
 else
 	echo "WARNING: No WiFi config file found (set-wireless.sh or mac80211.uc) — WiFi defaults NOT set." >&2
 fi

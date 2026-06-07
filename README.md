@@ -20,10 +20,10 @@ NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 | 项目 | 值 |
 |------|-----|
 | 登录地址 | 192.168.1.1 |
-| 登录密码 | password |
+| 登录密码 | （无） |
 | WiFi SSID | NRadio-WiFi |
-| WiFi 密码 | password |
-| WiFi 加密 | WPA2-PSK (CCMP) |
+| WiFi 密码 | （无密码，开放） |
+| WiFi 加密 | 无（开放） |
 | 主题 | Aurora |
 | 语言 | 简体中文 |
 

@@ -17,9 +17,9 @@ env:
   WRT_THEME: aurora
   WRT_NAME: NRadio-C8-660
   WRT_SSID: NRadio-WiFi
-  WRT_WORD: ${{ secrets.WRT_WORD || 'password' }}
+  WRT_WORD: ${{ secrets.WRT_WORD || '' }}
   WRT_IP: 192.168.1.1
-  WRT_PW: ${{ secrets.WRT_PW || 'password' }}
+  WRT_PW: ${{ secrets.WRT_PW || '' }}
   WRT_REPO: https://github.com/immortalwrt/immortalwrt
   WRT_BRANCH: master
   WRT_SOURCE: immortalwrt
@@ -269,10 +269,10 @@ jobs:
             平台：${{env.WRT_TARGET}} / 配置：${{env.WRT_CONFIG}}
 
             登录地址：${{env.WRT_IP}}
-            登录密码：${{env.WRT_PW}}
+            登录密码：${{ env.WRT_PW || "（无）" }}
 
             WIFI名称：${{env.WRT_SSID}}
-            WIFI密码：${{env.WRT_WORD}}
+            WIFI密码：${{ env.WRT_WORD || "（无密码，开放）" }}
 
             内核版本：${{env.WRT_KVER}}
             插件列表：${{env.WRT_LIST}}
