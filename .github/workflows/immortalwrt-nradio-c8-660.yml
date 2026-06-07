@@ -119,6 +119,7 @@ jobs:
         run: |
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           if [ -d "./wrt/staging_dir" ]; then
+            touch ./wrt/.config
             cd ./wrt/ && make clean -j$(nproc)
             find "./staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
               find "$DIR" -type f -exec touch {} +
