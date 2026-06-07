@@ -14,7 +14,11 @@ fi
 #修改immortalwrt.lan关联IP
 FLASH_JS=$(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js" 2>/dev/null | head -1)
 if [ -n "$FLASH_JS" ]; then
-	sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$FLASH_JS"
+	if grep -q "192\.168\.[0-9]*\.[0-9]*" "$FLASH_JS"; then
+		sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$FLASH_JS"
+	else
+		echo "WARNING: flash.js default IP pattern not found — upstream may have changed" >&2
+	fi
 fi
 
 #添加编译日期标识
@@ -62,8 +66,7 @@ fi
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
-echo "CONFIG_PACKAGE_luci-theme-$WRT_THEME=y" >> ./.config
-echo "CONFIG_PACKAGE_luci-app-$WRT_THEME-config=y" >> ./.config
+# luci-theme and luci-app-theme-config already set in GENERAL.txt
 
 #引入私有扩展配置
 if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then

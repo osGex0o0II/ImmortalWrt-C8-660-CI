@@ -58,6 +58,7 @@ jobs:
 
       - name: Initialization Values
         run: |
+          echo "CCACHE_DIR=$(pwd)/wrt/.ccache" >> $GITHUB_ENV
           echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")-${RANDOM}" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
           echo "WRT_INFO=immortalwrt" >> $GITHUB_ENV
@@ -104,12 +105,14 @@ jobs:
 
       - name: Update Caches
         run: |
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           if [ -d "./wrt/staging_dir" ]; then
-            find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
+            cd ./wrt/ && make clean -j$(nproc)
+            find "./staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
               find "$DIR" -type f -exec touch {} +
             done
 
-            mkdir -p ./wrt/tmp && echo "1" > ./wrt/tmp/.build
+            mkdir -p ./tmp && echo "1" > ./tmp/.build
 
             echo "toolchain skipped!"
           else
@@ -166,6 +169,7 @@ jobs:
       - name: Custom Settings
         run: |
           cd ./wrt/
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
 
           cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
 
@@ -176,8 +180,6 @@ jobs:
             cat .config
             exit 1
           fi
-
-          make clean -j$(nproc)
 
       - name: Check Disk Space
         run: |
@@ -196,6 +198,7 @@ jobs:
         timeout-minutes: 300
         run: |
           cd ./wrt/
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
 
           set -o pipefail
           make -j$(nproc) V=s 2>&1 | tee build.log
