@@ -7,7 +7,8 @@ name: ImmortalWrt NRadio C8-660
 on:
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
