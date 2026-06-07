@@ -1,3 +1,9 @@
+# NRadio C8-660 (MT7981B) device definition
+# Injected into upstream filogic.mk via Patches.sh
+# SPI-NAND: BLOCKSIZE 128k / PAGESIZE 2048
+# Flash: 512MB — IMAGE_SIZE 256MB safety limit
+# Kernel: in UBI volume (KERNEL_IN_UBI)
+# U-Boot env: stored in UBI (UBOOTENV_IN_UBI)
 define Device/nradio_c8-660
   DEVICE_VENDOR := NRadio
   DEVICE_MODEL := C8-660

@@ -43,7 +43,7 @@ usb-storage/extras/uas
 
 ## 系统工具
 
-autocore, automount, blkid, cpufreq, curl, htop, 
+autocore, automount, blkid, cpufreq, curl, htop,
 ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 
 ## 编译信息

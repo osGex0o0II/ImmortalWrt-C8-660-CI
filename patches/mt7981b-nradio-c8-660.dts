@@ -87,6 +87,7 @@
 	status = "okay";
 };
 
+// SPI-NAND Flash (512MB ESMT FC51L08SFY3A or equivalent)
 &spi0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi0_flash_pins>;
@@ -180,6 +181,7 @@
 	};
 };
 
+// Ethernet: 1x 2.5GbE (via GMAC0) + 3x 1GbE (via MT7531 switch)
 &eth {
 	status = "okay";
 
@@ -290,6 +292,7 @@
 	status = "okay";
 };
 
+// WiFi: MT7976CN (AX3000) via mt76 driver, EEPROM at factory offset 0x0
 &wifi {
 	mediatek,mtd-eeprom = <&factory 0x0>;
 	status = "okay";
