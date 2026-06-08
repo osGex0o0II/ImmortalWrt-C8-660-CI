@@ -1,4 +1,4 @@
-﻿# NRadio C8-660 (WT9103) MT7981B 512MB SPI-NAND
+# NRadio C8-660 (WT9103) MT7981B 512MB SPI-NAND
 # Device definition for ImmortalWrt filogic target
 # Hardware: MT7981B + MT7531 switch + 2x RTL8221B + MT7976CN WiFi
 # SPI-NAND: BLOCKSIZE 128k / PAGESIZE 2048
