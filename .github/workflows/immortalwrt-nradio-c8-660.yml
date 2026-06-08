@@ -74,7 +74,7 @@ jobs:
           echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")-${RANDOM}" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
           echo "WRT_INFO=immortalwrt" >> $GITHUB_ENV
-          echo "WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' ./Config/$WRT_CONFIG.txt)" >> $GITHUB_ENV
+          echo "WRT_TARGET=nradio_c8-660" >> $GITHUB_ENV
           echo "WRT_WIFI=wifi-yes" >> $GITHUB_ENV
           echo "WRT_KVER=none" >> $GITHUB_ENV
           echo "WRT_LIST=none" >> $GITHUB_ENV
@@ -91,16 +91,25 @@ jobs:
 
       - name: Verify DTS
         run: |
+          OK=true
           for DTS in ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts; do
             if [ -f "$DTS" ]; then echo "OK: Found $DTS";
-            else echo "WARN: Missing $DTS"; fi
+            else echo "ERR: Missing $DTS"; OK=false; fi
           done
-          grep -q "nradio_c8-660" ./wrt/target/linux/mediatek/image/filogic.mk && echo "OK: Device added to filogic.mk" || echo "WARN: Device NOT in filogic.mk"
+          if grep -q "nradio_c8-660" ./wrt/target/linux/mediatek/image/filogic.mk; then
+            echo "OK: Device added to filogic.mk"
+          else
+            echo "ERR: Device NOT in filogic.mk"
+            tail -5 ./wrt/target/linux/mediatek/image/filogic.mk
+            OK=false
+          fi
+          if ! $OK; then exit 1; fi
 
       - name: Check Scripts
         run: |
           find ./ -maxdepth 3 -type f -iname "*.sh" -exec dos2unix {} \; -exec chmod +x {} \;
           find ./ -maxdepth 3 -type f -iname "*.txt" -exec dos2unix {} \;
+          find ./ -maxdepth 3 -type f -iname "*.mk" -exec dos2unix {} \;
 
       - name: Check Caches
         id: check-cache
@@ -191,6 +200,17 @@ jobs:
             exit 1
           fi
 
+          echo "=== defconfig target entries ==="
+          grep -E '^CONFIG_TARGET' .config
+
+          SELECTED_DEVICE=$(grep -oP '^CONFIG_TARGET_DEVICE_[\w]+_DEVICE_\K[\w-]+(?=\=y)' .config | head -1)
+          echo "Selected device: '$SELECTED_DEVICE'"
+          if [ "$SELECTED_DEVICE" != "nradio_c8-660" ]; then
+            echo "::error::WRONG DEVICE: expected nradio_c8-660, got '$SELECTED_DEVICE'"
+            exit 1
+          fi
+          echo "OK: Device nradio_c8-660 selected correctly"
+
       - name: Download Packages
         run: |
           cd ./wrt/
@@ -236,6 +256,15 @@ jobs:
         with:
           name: packages-debug-${{env.WRT_CONFIG}}
           path: /tmp/packages.log
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Upload Config Snapshot
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: config-snapshot-${{env.WRT_CONFIG}}
+          path: ./wrt/.config
           retention-days: 3
           if-no-files-found: warn
 
