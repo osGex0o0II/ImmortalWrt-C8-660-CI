@@ -13,7 +13,7 @@ NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 | 5G 模组 | Quectel RM520N-CN (Snapdragon X62) |
 | 以太网 | 1x 2.5GbE + 3x 1GbE (MT7531 交换机) |
 | 按键 | Reset, WPS |
-| LED | Power, 5G, 4G, WiFi |
+| LED | Status, 5G, LAN, WiFi |
 
 ## 默认设置
 
@@ -59,7 +59,7 @@ ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 
 ## 已知风险与救砖
 
-本项目编译产物为 mainline 内核 (6.x)，与设备原厂 SDK 内核 (5.4) 引导链不兼容。首次刷入需通过 **U-Boot TFTP 恢复模式** 或 **官方双系统切换**，不可直接在原厂 Web 升级。
+本项目编译产物为 mainline 内核 (6.x)，与设备原厂 SDK 内核 (5.4) 引导链不兼容。本项目为**单系统固件**，首次刷入需通过 **U-Boot TFTP 恢复模式**，将整个 NAND 替换为 OpenWrt 单系统，**不可**直接在原厂 Web 升级，也不支持双系统切换。
 
 刷机前**必须备份 FIP / bl2 分区**：
 
@@ -80,7 +80,7 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 
 - `patches/mt7981b-nradio-c8-660.dts` — 完整设备树（基于 hanwckf -512m 改写）
 - `patches/filogic-c8-660.mk` — 设备定义追加到 `filogic.mk`
-- `patches/01_leds.snippet` — 注入 5G/WiFi/电源 LED 行为
+- `patches/01_leds.snippet` — 注入 Status/5G/LAN/WiFi LED 行为
 - `patches/11_fix_wifi_mac.snippet` — 注入从 `bdinfo` 分区读取 MAC 并修复 WiFi MAC
 
 ## 社区相关项目
@@ -119,8 +119,11 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 ## 使用流程
 
 1. GitHub Actions 手动触发 `ImmortalWrt NRadio C8-660` 工作流（`workflow_dispatch`）
-2. 下载产物 `factory.bin`（首次刷入）或 `sysupgrade.itb`（同主版本升级）
-3. U-Boot TFTP 模式下刷入 `factory.bin`
+2. 下载产物 `factory.bin`（首次刷入）或 `sysupgrade.bin`（同主版本升级）
+3. U-Boot TFTP 模式下刷入 `factory.bin`（**首次刷机会替换整个 NAND，包括原厂 NROS**）
+   - 按住 Reset 按钮上电，设备进入 TFTP 恢复模式
+   - 通过网线连接电脑，设置 IP 为 `192.168.1.x` 段
+   - 使用 TFTP 工具上传 `factory.bin`
 4. 启动后浏览器访问 192.168.1.1
 
 ### 环境说明
