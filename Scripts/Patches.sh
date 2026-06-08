@@ -67,7 +67,7 @@ fi
 # 追加设备定义到 filogic.mk（幂等检查）
 for MK in "$PATCHES_DIR"/*.mk; do
 	[ -f "$MK" ] || continue
-	grep -q "nradio_c8-660" "$WRT_DIR/target/linux/mediatek/image/filogic.mk" 2>/dev/null || cat "$MK" >> "$WRT_DIR/target/linux/mediatek/image/filogic.mk"
+	grep -q "nradio_wt9103" "$WRT_DIR/target/linux/mediatek/image/filogic.mk" 2>/dev/null || cat "$MK" >> "$WRT_DIR/target/linux/mediatek/image/filogic.mk"
 done
 
 # 注入 LED 行为定义

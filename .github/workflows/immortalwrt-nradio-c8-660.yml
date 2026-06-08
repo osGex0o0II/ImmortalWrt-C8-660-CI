@@ -74,7 +74,7 @@ jobs:
           echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")-${RANDOM}" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
           echo "WRT_INFO=immortalwrt" >> $GITHUB_ENV
-          echo "WRT_TARGET=nradio_c8-660" >> $GITHUB_ENV
+          echo "WRT_TARGET=nradio_wt9103" >> $GITHUB_ENV
           echo "WRT_WIFI=wifi-yes" >> $GITHUB_ENV
           echo "WRT_KVER=none" >> $GITHUB_ENV
           echo "WRT_LIST=none" >> $GITHUB_ENV
@@ -96,7 +96,7 @@ jobs:
             if [ -f "$DTS" ]; then echo "OK: Found $DTS";
             else echo "ERR: Missing $DTS"; OK=false; fi
           done
-          if grep -q "nradio_c8-660" ./wrt/target/linux/mediatek/image/filogic.mk; then
+          if grep -q "nradio_wt9103" ./wrt/target/linux/mediatek/image/filogic.mk; then
             echo "OK: Device added to filogic.mk"
           else
             echo "ERR: Device NOT in filogic.mk"
@@ -205,11 +205,11 @@ jobs:
 
           SELECTED_DEVICE=$(grep -oP '^CONFIG_TARGET_DEVICE_[\w]+_DEVICE_\K[\w-]+(?=\=y)' .config | head -1)
           echo "Selected device: '$SELECTED_DEVICE'"
-          if [ "$SELECTED_DEVICE" != "nradio_c8-660" ]; then
-            echo "::error::WRONG DEVICE: expected nradio_c8-660, got '$SELECTED_DEVICE'"
+          if [ "$SELECTED_DEVICE" != "nradio_wt9103" ]; then
+            echo "::error::WRONG DEVICE: expected nradio_wt9103, got '$SELECTED_DEVICE'"
             exit 1
           fi
-          echo "OK: Device nradio_c8-660 selected correctly"
+          echo "OK: Device nradio_wt9103 selected correctly"
 
       - name: Download Packages
         run: |
