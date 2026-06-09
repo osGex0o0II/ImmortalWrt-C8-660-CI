@@ -288,13 +288,6 @@
 	status = "okay";
 };
 
-&hnat {
-	mtketh-wan = "eth1";
-	mtketh-lan = "port";
-	mtketh-max-gmac = <2>;
-	status = "okay";
-};
-
 &wifi {
 	mediatek,mtd-eeprom = <&factory 0x0>;
 	status = "okay";
