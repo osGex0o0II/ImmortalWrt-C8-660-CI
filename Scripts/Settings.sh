@@ -3,39 +3,45 @@
 # Copyright (C) 2026 VIKINGYFY
 set -euo pipefail
 
-#移除luci-app-attendedsysupgrade
-ATTENDED_MAKEFILE=$(find ./feeds/luci/collections/ -type f -name "Makefile" 2>/dev/null | head -1)
-if [ -n "$ATTENDED_MAKEFILE" ]; then
+# 移除 luci-app-attendedsysupgrade 并修改默认主题
+ATTENDED_MAKEFILE="./feeds/luci/collections/luci/Makefile"
+if [ -f "$ATTENDED_MAKEFILE" ]; then
 	sed -i "/attendedsysupgrade/d" "$ATTENDED_MAKEFILE"
-	#修改默认主题
 	sed -i "s|luci-theme-bootstrap|luci-theme-$WRT_THEME|g" "$ATTENDED_MAKEFILE"
+else
+	echo "WARNING: $ATTENDED_MAKEFILE not found — attendedsysupgrade/theme not modified" >&2
 fi
 
-#修改immortalwrt.lan关联IP
-FLASH_JS=$(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js" 2>/dev/null | head -1)
-if [ -n "$FLASH_JS" ]; then
+# 修改 immortalwrt.lan 关联 IP
+FLASH_JS="./feeds/luci/modules/luci-mod-system/htdocs/luci-static/resources/view/system/flash.js"
+if [ -f "$FLASH_JS" ]; then
 	if grep -q "192\.168\.[0-9]*\.[0-9]*" "$FLASH_JS"; then
 		sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$FLASH_JS"
 	else
 		echo "WARNING: flash.js default IP pattern not found — upstream may have changed" >&2
 	fi
+else
+	echo "WARNING: $FLASH_JS not found — IP not modified" >&2
 fi
 
-#添加编译日期标识
-STATUS_JS=$(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js" 2>/dev/null | head -1)
-if [ -n "$STATUS_JS" ]; then
+# 添加编译日期标识
+STATUS_JS="./feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/10_system.js"
+if [ -f "$STATUS_JS" ]; then
 	sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" "$STATUS_JS"
+else
+	echo "WARNING: $STATUS_JS not found — build date not added" >&2
 fi
 
-WIFI_SH=$(find ./target/linux/mediatek/filogic/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh" 2>/dev/null)
+# 修改 WiFi 默认配置
+WIFI_SH="./target/linux/mediatek/filogic/base-files/etc/uci-defaults/99_set-wireless.sh"
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
 if [ -f "$WIFI_SH" ]; then
-	#修改WIFI名称
-	sed -i "s/BASE_SSID='.*'/BASE_SSID='$WRT_SSID'/g" $WIFI_SH
+	# 修改 WiFi 名称
+	sed -i "s/BASE_SSID='.*'/BASE_SSID='$WRT_SSID'/g" "$WIFI_SH"
 	if [ -n "$WRT_WORD" ]; then
-		sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" $WIFI_SH
+		sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" "$WIFI_SH"
 	else
-		sed -i "s/BASE_WORD='.*'/BASE_WORD=''/g" $WIFI_SH
+		sed -i "s/BASE_WORD='.*'/BASE_WORD=''/g" "$WIFI_SH"
 	fi
 elif [ -f "$WIFI_UC" ]; then
 	#修改WIFI名称
@@ -77,12 +83,12 @@ fi
 # === mt76 WiFi 性能优化 ===
 
 # WED 启用（硬件 WiFi offload，MT7981 + MT7915E 支持）
-if [ -d "./package/kernel/mt76" ]; then
-	MT76_DIR=$(find ./package/kernel/mt76 -type d -name "mt7915e" 2>/dev/null | head -1)
-	if [ -n "$MT76_DIR" ]; then
-		echo "options mt7915e wed_enable=Y" > "$MT76_DIR/mt7915e.conf"
-		echo "mt76 WED enabled (hardware offload)"
-	fi
+MT76_DIR="./package/kernel/mt76/files/drivers/net/wireless/mediatek/mt76/mt7915e"
+if [ -d "$MT76_DIR" ]; then
+	echo "options mt7915e wed_enable=Y" > "$MT76_DIR/mt7915e.conf"
+	echo "mt76 WED enabled (hardware offload)"
+else
+	echo "WARNING: $MT76_DIR not found — WED not enabled" >&2
 fi
 
 # 网络栈 buffer 优化
