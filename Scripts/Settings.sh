@@ -56,7 +56,8 @@ elif [ -f "$WIFI_UC" ]; then
 		sed -i "s/encryption='.*'/encryption='none'/g" $WIFI_UC
 	fi
 else
-	echo "WARNING: No WiFi config file found (set-wireless.sh or mac80211.uc) — WiFi defaults NOT set." >&2
+	echo "ERROR: No WiFi config file found (set-wireless.sh or mac80211.uc) — WiFi defaults NOT set." >&2
+	exit 1
 fi
 
 CFG_FILE="./package/base-files/files/bin/config_generate"
@@ -66,7 +67,8 @@ if [ -f "$CFG_FILE" ]; then
 	#修改默认主机名
 	sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
 else
-	echo "WARNING: $CFG_FILE not found — IP/hostname defaults NOT set." >&2
+	echo "ERROR: $CFG_FILE not found — IP/hostname defaults NOT set." >&2
+	exit 1
 fi
 
 #配置文件修改
