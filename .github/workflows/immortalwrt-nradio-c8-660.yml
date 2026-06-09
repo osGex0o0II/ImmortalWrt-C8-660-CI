@@ -185,6 +185,22 @@ jobs:
             $GITHUB_WORKSPACE/Scripts/Handles.sh
           } 2>&1 | tee /tmp/packages.log
 
+      - name: Debug DUMP Output
+        run: |
+          cd ./wrt/
+          echo "=== DUMP output for nradio (image dir) ==="
+          make -C target/linux/mediatek/image DUMP=1 SUBTARGET=filogic 2>&1 | grep -i nradio || echo "WARN: nradio NOT in DUMP output"
+          echo ""
+          echo "=== DUMP output for nradio (target dir) ==="
+          make -C target/linux/mediatek DUMP=1 SUBTARGET=filogic 2>&1 | grep -i nradio || echo "WARN: nradio NOT in DUMP output (target)"
+          echo ""
+          echo "=== Last 30 lines of filogic.mk ==="
+          tail -30 target/linux/mediatek/image/filogic.mk
+          echo ""
+          echo "=== filogic.mk file info ==="
+          file target/linux/mediatek/image/filogic.mk
+          wc -l target/linux/mediatek/image/filogic.mk
+
       - name: Custom Settings
         run: |
           cd ./wrt/
@@ -194,12 +210,27 @@ jobs:
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
+          echo "=== .config before defconfig ==="
+          grep '^CONFIG_TARGET' .config || echo "No CONFIG_TARGET lines in .config"
+
           if ! make defconfig -j$(nproc); then
             echo "ERROR: make defconfig failed!"
             cat .config
             exit 1
           fi
 
+          echo "=== .config after defconfig ==="
+          grep '^CONFIG_TARGET' .config || echo "No CONFIG_TARGET lines after defconfig"
+
+          echo ""
+          echo "=== tmp/.targetinfo nradio lines ==="
+          grep -i nradio tmp/.targetinfo 2>/dev/null || echo "nradio NOT in .targetinfo"
+
+          echo ""
+          echo "=== tmp/.config-target.in nradio lines ==="
+          grep -i nradio tmp/.config-target.in 2>/dev/null || echo "nradio NOT in .config-target.in"
+
+          echo ""
           echo "=== defconfig target entries ==="
           grep -E '^CONFIG_TARGET' .config
 
@@ -264,7 +295,10 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: config-snapshot-${{env.WRT_CONFIG}}
-          path: ./wrt/.config
+          path: |
+            ./wrt/.config
+            ./wrt/tmp/.targetinfo
+            ./wrt/tmp/.config-target.in
           retention-days: 3
           if-no-files-found: warn
 
