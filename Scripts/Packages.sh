@@ -46,6 +46,10 @@ UPDATE_PACKAGE() {
 	for i in 1 2 3; do
 		git clone --depth=1 --single-branch --branch "$LOCKED_BRANCH" "https://github.com/$PKG_REPO.git" && break || sleep 10
 	done
+	if [ ! -d "$REPO_NAME" ] && [ ! -d "$PKG_NAME" ]; then
+		echo "::error::Failed to clone $PKG_REPO after 3 attempts"
+		return 1
+	fi
 
 	# 如果设置了锁定 commit，checkout 到该 commit
 	if [ -n "$LOCKED_COMMIT" ]; then
