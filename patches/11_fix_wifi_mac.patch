@@ -1,11 +1,22 @@
 --- a/target/linux/mediatek/filogic/base-files/etc/hotplug.d/ieee80211/11_fix_wifi_mac
 +++ b/target/linux/mediatek/filogic/base-files/etc/hotplug.d/ieee80211/11_fix_wifi_mac
-@@ -1,3 +1,8 @@
+@@ -1,3 +1,28 @@
  #!/bin/sh
  
  case "$DEVPATH" in
 +nradio,wt9103)
-+	hw_mac_addr=$(mtd_get_mac_ascii bdinfo "fac_mac ")
++	hw_mac_addr=$(mtd_get_mac_ascii bdinfo "fac_mac " 2>/dev/null)
++	if [ -z "$hw_mac_addr" ]; then
++		# Fallback 1: 尝试从 factory 分区偏移读取
++		hw_mac_addr=$(dd if=/dev/mtdblock1 bs=1 skip=4 count=6 2>/dev/null | hexdump -v -e '6/1 "%02x:"' | sed 's/:$//')
++	fi
++	if [ -z "$hw_mac_addr" ] || [ "$hw_mac_addr" = "00:00:00:00:00:00" ]; then
++		# Fallback 2: 生成本地管理 MAC (02:xx:xx:xx:xx:xx)
++		hw_mac_addr=$(printf '02:%02x:%02x:%02x:%02x:%02x' \
++			$((RANDOM % 256)) $((RANDOM % 256)) $((RANDOM % 256)) \
++			$((RANDOM % 256)) $((RANDOM % 256)))
++		logger -t wifi_mac "Generated fallback MAC: $hw_mac_addr"
++	fi
 +	[ "$PHYNBR" = "0" ] && echo "$hw_mac_addr" > /sys${DEVPATH}/macaddress
 +	[ "$PHYNBR" = "1" ] && macaddr_setbit_la $hw_mac_addr > /sys${DEVPATH}/macaddress
 +	;;
