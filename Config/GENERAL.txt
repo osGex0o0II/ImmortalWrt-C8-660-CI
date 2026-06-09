@@ -2,6 +2,10 @@
 # ImmortalWrt NRadio C8-660 通用配置
 # ==========================================
 
+# --- 目标设备选择 ---
+CONFIG_TARGET_MULTI_PROFILE=y
+CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+
 # --- Luci 界面与插件 ---
 CONFIG_PACKAGE_luci-app-partexp=y
 CONFIG_PACKAGE_luci-app-aurora-config=y
