@@ -243,7 +243,7 @@ jobs:
           du -sh ./wrt/* 2>/dev/null | sort -rh | head -10
 
       - name: Compile Firmware
-        timeout-minutes: 300
+        timeout-minutes: ${{ steps.check-cache.outputs.cache-hit == 'true' && 120 || 300 }}
         run: |
           cd ./wrt/
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
