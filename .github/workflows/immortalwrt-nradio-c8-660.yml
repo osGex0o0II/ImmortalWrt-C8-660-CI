@@ -324,8 +324,16 @@ jobs:
 
       - name: Prepare Release Info
         run: |
-          echo "WRT_PW_DISPLAY=${WRT_PW:-（无）}" >> $GITHUB_ENV
-          echo "WRT_WORD_DISPLAY=${WRT_WORD:-（无密码，开放）}" >> $GITHUB_ENV
+          if [ -z "$WRT_PW" ]; then
+            echo "WRT_PW_DISPLAY=（无）" >> $GITHUB_ENV
+          else
+            echo "WRT_PW_DISPLAY=$WRT_PW" >> $GITHUB_ENV
+          fi
+          if [ -z "$WRT_WORD" ]; then
+            echo "WRT_WORD_DISPLAY=（无密码，开放）" >> $GITHUB_ENV
+          else
+            echo "WRT_WORD_DISPLAY=$WRT_WORD" >> $GITHUB_ENV
+          fi
 
       - name: Release Firmware
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
