@@ -6,8 +6,6 @@ name: ImmortalWrt NRadio C8-660
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -306,21 +304,33 @@ jobs:
         run: |
           cd ./wrt/ && mkdir ./upload/
 
-          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
-
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} +
+          find ./bin/targets/ -iregex ".*\(buildinfo\|json\|packages\)$" -exec rm -rf {} +
 
-          for FILE in $(find ./bin/targets/ -type f -iname "*$WRT_TARGET*") ; do
-            EXT=$(basename $FILE | cut -d '.' -f 2-)
-            NAME=$(basename $FILE | cut -d '.' -f 1 | grep -io "\($WRT_TARGET\).*")
-            NEW_FILE="$NAME"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_WIFI"-"$WRT_DATE"."$EXT"
-            mv -f $FILE ./upload/$NEW_FILE
+          # 保留关键镜像，统一命名
+          for FILE in $(find ./bin/targets/ -type f -iname "*factory*" -o -iname "*sysupgrade*" -o -iname "*initramfs*" -o -iname "*bl2*" -o -iname "*manifest*" -o -iname "*sha256sums*" -o -iname "*.dtb" 2>/dev/null); do
+            BASENAME=$(basename "$FILE")
+            cp -f "$FILE" "./upload/$BASENAME"
           done
 
-          find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
+          # 只保留 C8-660 所需的 BL2
+          find ./upload/ -type f -iname "*bl2*" ! -iname "mt7981*" -delete
+
+          # 固件重命名
+          for FILE in ./upload/*.bin; do
+            [ -f "$FILE" ] || continue
+            BASE=$(basename "$FILE")
+            case "$BASE" in
+              *squashfs-factory*)  SHORT="immortalwrt-c8-660-factory.bin" ;;
+              *squashfs-sysupgrade*) SHORT="immortalwrt-c8-660-sysupgrade.bin" ;;
+              *initramfs*)        SHORT="immortalwrt-c8-660-initramfs.bin" ;;
+              *bl2*)              SHORT="mt7981-bl2.bin" ;;
+              *)                  continue ;;
+            esac
+            mv -f "$FILE" "./upload/$SHORT"
+          done
 
       - name: Prepare Release Info
         run: |
@@ -338,25 +348,43 @@ jobs:
       - name: Release Firmware
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
-          tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
-          files: ./wrt/upload/*.*
+          tag_name: immortalwrt-c8-660-${{env.WRT_DATE}}
+          files: |
+            ./wrt/upload/immortalwrt-c8-660-factory.bin
+            ./wrt/upload/immortalwrt-c8-660-sysupgrade.bin
+            ./wrt/upload/immortalwrt-c8-660-initramfs.bin
+            ./wrt/upload/mt7981-bl2.bin
+            ./wrt/upload/*.manifest
+            ./wrt/upload/sha256sums
           body: |
-            NRadio C8-660 (MT7981) 专用 ImmortalWrt 固件
+            ## NRadio C8-660 (MT7981) ImmortalWrt 固件
 
-            源码：${{env.WRT_REPO}}
-            分支：${{env.WRT_BRANCH}}
-            提交：${{env.WRT_HASH}}
+            ### 刷机说明
 
-            平台：${{env.WRT_TARGET}} / 配置：${{env.WRT_CONFIG}}
+            **首次刷机（从原厂 NROS 刷入）：**
+            1. 按住 Reset 按键上电，进入 U-Boot TFTP 恢复模式
+            2. 电脑设置静态 IP 192.168.1.x（如 192.168.1.2）
+            3. 使用 TFTP 客户端上传 `immortalwrt-c8-660-factory.bin`
+            4. 等待 3-5 分钟，访问 http://192.168.1.1
 
-            登录地址：${{env.WRT_IP}}
-            登录密码：${{env.WRT_PW_DISPLAY}}
+            **升级（同版本 OpenWrt）：**
+            - LuCI → 系统 → 备份/升级 → 刷写固件 → 选择 `immortalwrt-c8-660-sysupgrade.bin`
 
-            WIFI名称：${{env.WRT_SSID}}
-            WIFI密码：${{env.WRT_WORD_DISPLAY}}
+            ### 固件信息
 
-            内核版本：${{env.WRT_KVER}}
-            插件列表：${{env.WRT_LIST}}
+            | 项目 | 值 |
+            |------|-----|
+            | 源码 | ${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) |
+            | 提交 | ${{env.WRT_HASH}} |
+            | 内核 | ${{env.WRT_KVER}} |
+            | 登录地址 | ${{env.WRT_IP}} |
+            | 登录密码 | ${{env.WRT_PW_DISPLAY}} |
+            | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
+            | 插件 | ${{env.WRT_LIST}} |
+
+            **注意：** 登录 IP 已从原厂 192.168.66.1 变更为 192.168.1.1。5G 模组（RM520N-CN）首次启动约需 60 秒完成初始化。
+
+            > ⚠️ 本项目编译产物使用 mainline 内核（6.x），与 NRadio SDK 内核（5.4）引导链不兼容。刷机前请务必通过 U-Boot TFTP 模式备份 BL2 和 FIP 分区。刷机风险自担。
 
       - name: Clean Build Workspace
         if: always()

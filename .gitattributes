@@ -3,3 +3,6 @@
 *.mk text eol=lf
 *.dts text eol=lf
 *.yml text eol=lf
+patches/files/etc/config/* text eol=lf
+patches/files/etc/init.d/* text eol=lf
+patches/files/bin/* text eol=lf
