@@ -384,21 +384,23 @@
     #Check if SIM Ready to use
 
     chkSimReady() {
-        chkSimReadyMAX_RETRIES=30
-        local simReady=$(sendat 2 'at+qinistat' | grep '+QINISTAT' | awk '{print $2}' | tr -d '\r\n')
-        while [ $moduleSetChkMAX_RETRIES -gt 0 ]; do
+        local MAX_RETRIES=30
+        local simReady
+        while [ $MAX_RETRIES -gt 0 ]; do
+            simReady=$(sendat 2 'at+qinistat' | grep '+QINISTAT' | awk '{print $2}' | tr -d '\r\n')
             case $simReady in
                 7)
                     printMsg "SIM card is ready."
                     return 0
                     ;;
                 *)
-                        printMsg "Unknown SIM card Init status. Retrying..."
-                        chkSimReadyMAX_RETRIES=$((chkSimReadyMAX_RETRIES - 1))
-                        sleep 2
+                    printMsg "Unknown SIM card Init status. Retrying..."
+                    MAX_RETRIES=$((MAX_RETRIES - 1))
+                    sleep 2
                     ;;
             esac
         done
+        printMsg "SIM card init timed out."
     }
 
 
@@ -407,7 +409,7 @@
         macchk=0
         moduleSetChkMAX_RETRIES=5
         printMsg "Start Modem Hardware Check"
-        sendat 2 'at+qeth="rgmii","enable",1"'
+        sendat 2 'at+qeth="rgmii","enable",1'
         while [ $macchk -lt 30 ]; do
             mac_address=$(ifconfig | grep eth1 | awk '{print $5}' | tr -d '\r\n')
 
