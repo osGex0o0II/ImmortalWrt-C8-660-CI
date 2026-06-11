@@ -43,7 +43,7 @@ modem_init(){
       Modem_Enable=`uci -q get modem.@ndis[0].enable` || Modem_Enable=1
       #模块启动
       #模块开关
-      if [ "$Modem_Enable" == 0 ]; then
+      if [ "$Modem_Enable" = 0 ]; then
           echo 0 >/sys/class/gpio/cpe-pwr/value
           printMsg "禁用模块，退出"
           rm $lock_file

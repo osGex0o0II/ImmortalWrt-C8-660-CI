@@ -13,7 +13,7 @@ define Device/nradio_wt9103
 	kmod-usb-serial-option kmod-usb-serial-wwan kmod-usb-net-cdc-ether \
 	kmod-usb-net-qmi-wwan kmod-usb-wdm kmod-usb-net-cdc-ncm \
 	kmod-usb-net-huawei-cdc-ncm kmod-usb3 automount \
-	uqmi luci-proto-qmi sms-tool luci-app-sms-tool \
+	uqmi luci-proto-qmi sms-tool \
 	comgt comgt-ncm chat usb-modeswitch
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k

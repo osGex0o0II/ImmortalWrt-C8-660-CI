@@ -12,7 +12,7 @@ if [ -n "$AURORA_DIR" ]; then
 
 	TEMPLATE_FILES=$(find ./root/usr/share/aurora/ -type f -name "*.template" 2>/dev/null || true)
 	if [ -n "$TEMPLATE_FILES" ]; then
-		sed -i "s/nav_submenu_type '.*'/nav_submenu_type 'boxed-dropdown'/g" $TEMPLATE_FILES
+		sed -i "s/nav_submenu_type '.*'/nav_submenu_type 'boxed-dropdown'/g" "$TEMPLATE_FILES"
 	fi
 
 	cd "$PKG_PATH" && echo "theme-aurora has been fixed!"

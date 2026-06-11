@@ -3,6 +3,11 @@
 *.mk text eol=lf
 *.dts text eol=lf
 *.yml text eol=lf
+*.snippet text eol=lf
 patches/files/etc/config/* text eol=lf
 patches/files/etc/init.d/* text eol=lf
 patches/files/bin/* text eol=lf
+patches/files/usr/share/modem/moimei binary
+patches/files/usr/share/modem/mopdu binary
+patches/files/bin/sendat binary
+patches/sendat binary

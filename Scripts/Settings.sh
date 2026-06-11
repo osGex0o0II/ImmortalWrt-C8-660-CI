@@ -45,15 +45,15 @@ if [ -f "$WIFI_SH" ]; then
 	fi
 elif [ -f "$WIFI_UC" ]; then
 	#修改WIFI名称
-	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" $WIFI_UC
+	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" "$WIFI_UC"
 	#修改WIFI地区
-	sed -i "s/country='.*'/country='CN'/g" $WIFI_UC
+	sed -i "s/country='.*'/country='CN'/g" "$WIFI_UC"
 	if [ -n "$WRT_WORD" ]; then
-		sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
-		sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" $WIFI_UC
+		sed -i "s/key='.*'/key='$WRT_WORD'/g" "$WIFI_UC"
+		sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" "$WIFI_UC"
 	else
-		sed -i "/key=/d" $WIFI_UC
-		sed -i "s/encryption='.*'/encryption='none'/g" $WIFI_UC
+		sed -i "/key=/d" "$WIFI_UC"
+		sed -i "s/encryption='.*'/encryption='none'/g" "$WIFI_UC"
 	fi
 else
 	echo "ERROR: No WiFi config file found (set-wireless.sh or mac80211.uc) — WiFi defaults NOT set." >&2
@@ -63,9 +63,9 @@ fi
 CFG_FILE="./package/base-files/files/bin/config_generate"
 if [ -f "$CFG_FILE" ]; then
 	#修改默认IP地址
-	sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
+	sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$CFG_FILE"
 	#修改默认主机名
-	sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
+	sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" "$CFG_FILE"
 else
 	echo "ERROR: $CFG_FILE not found — IP/hostname defaults NOT set." >&2
 	exit 1

@@ -6,7 +6,7 @@ if [ -e "$LOCK_FILE" ]; then
     exit 1
 fi
 touch "$LOCK_FILE"
-source /usr/share/modem/Quectel
+. /usr/share/modem/Quectel
 
 sim_sel=$(cat /tmp/sim_sel)
 SIMCard=""
@@ -35,10 +35,10 @@ if [ -z "$(echo "$SIM_Check" | grep "READY")" ]; then
     echo `date "+%Y-%m-%d %H:%M:%S"`
     echo ''
     echo "未检测到SIM卡!"
-    echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    printf "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
     } > /tmp/cpe_cell.file
     rm -rf "$LOCK_FILE"
-    exit
+    exit 0
 fi
 
 InitData(){

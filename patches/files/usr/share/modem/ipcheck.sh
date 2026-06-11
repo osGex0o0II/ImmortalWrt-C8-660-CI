@@ -13,14 +13,21 @@ printMsg "Start IP Check"
 
 LOCKFILE="/tmp/ipcheck.lock"
 FAILCOUNT=0
+
+cleanup() {
+    rm -f "$LOCKFILE"
+    exit 0
+}
+trap cleanup INT TERM
+
 # Check if lockfile exists
-if [ -f $LOCKFILE ]; then
-    OLD_PID=$(cat $LOCKFILE)
+if [ -f "$LOCKFILE" ]; then
+    OLD_PID=$(cat "$LOCKFILE")
     printMsg "Kill $OLD_PID" 
-    kill $OLD_PID
+    kill "$OLD_PID"
 fi
 
-echo $$ > $LOCKFILE
+echo $$ > "$LOCKFILE"
 
 check_ip_if_alive() {
     eth1ip=$(sendat 2 'at+qmap="wwan"' | grep IPV4 | awk -F \" '{print $6}')

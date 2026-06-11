@@ -1,4 +1,4 @@
-    #!/bin/sh
+#!/bin/sh
     #By Zy143L
     #Icey:add module test function
     echo "SIM INIT..." >/tmp/simcardstat
@@ -39,7 +39,7 @@
     Modem_Enable=`uci -q get modem.@ndis[0].enable` || Modem_Enable=1
     #模块启动
     #模块开关
-    if [ "$Modem_Enable" == 0 ]; then
+    if [ "$Modem_Enable" = 0 ]; then
         echo 0 >/sys/class/gpio/cpe-pwr/value
         printMsg "禁用模块，退出"
         rm $lock_file
@@ -73,15 +73,7 @@
     AutoFreqLock=` uci -q get modem.@ndis[0].autofreqlock` || AutoFreqLock=0
     Dataroaming=` uci -q get modem.@ndis[0].dataroaming` || Dataroaming=0
 
-    if [ ${Enable_PING} == 1 ];then
-        /usr/share/modem/pingCheck.sh &
-    else 
-        process=`ps -ef | grep "pingCheck" | grep -v grep | awk '{print $1}'` 
-        if [[ -n "$process" ]]; then
-            kill -9 "$process" >/dev/null 2>&1
-        fi
-        rm -rf /tmp/pingCheck.lock
-    fi
+    # pingCheck.sh removed — was dead code (all commented out)
 
      #-----------------SIM Card switch
      #attention！ims enable and autosel enable will make some card work under 4G network
@@ -134,7 +126,7 @@
         echo "正在初始化，请稍后刷新查看状态" >/tmp/ipv6prefix
     fi
 
-    if [ ${Enable_IMEI} == 1 ];then
+    if [ ${Enable_IMEI} = 1 ];then
         IMEI_file="/tmp/IMEI"
         if [ -e "$IMEI_file" ]; then
             last_IMEI=$(cat "$IMEI_file")
@@ -161,10 +153,10 @@
     fi
     #--
     if [ "$RF_Mode" != "$last_RF_Mode" ]; then
-        if [ "$RF_Mode" == 0 ]; then
+        if [ "$RF_Mode" = 0 ]; then
             echo "RF_Mode: $RF_Mode 自动网络" >> /tmp/moduleInit
             sendat 2 'AT+QNWPREFCFG="mode_pref",AUTO' >> /tmp/moduleInit
-        elif [ "$RF_Mode" == 1 ]; then
+        elif [ "$RF_Mode" = 1 ]; then
             echo "RF_Mode: $RF_Mode 4G网络" >> /tmp/moduleInit
             sendat 2 'AT+QNWPREFCFG="mode_pref",LTE' >> /tmp/moduleInit
         elif [ "$RF_Mode" = 2 ]; then
@@ -187,7 +179,7 @@
     fi
     #--
     if [ "$Band_LTE" != "$last_Band_LTE" ]; then
-        if [ "$Band_LTE" == 0 ]; then
+        if [ "$Band_LTE" = 0 ]; then
             sendat_command='AT+QNWPREFCFG="lte_band",1:3:5:8:34:38:39:40:41'
             sendat_result=$(sendat 2 "$sendat_command")
             echo "LTE自动: $sendat_result" >> /tmp/moduleInit
@@ -212,7 +204,7 @@
     fi
     #--
     if [ "$NR_Mode" != "$last_NR_Mode" ]; then
-        if [ "$NR_Mode" == 0 ]; then
+        if [ "$NR_Mode" = 0 ]; then
             echo "NR_Mode: $NR_Mode 自动网络" >> /tmp/moduleInit
             sendat 2 'AT+QNWPREFCFG="nr5g_disable_mode",0' >> /tmp/moduleInit
         elif [ "$NR_Mode" = 1 ]; then
@@ -238,7 +230,7 @@
     fi
     #--
     if [ "$Band_SA" != "$last_Band_SA" ]; then
-        if [ "$Band_SA" == 0 ]; then
+        if [ "$Band_SA" = 0 ]; then
             sendat_command='AT+QNWPREFCFG="nr5g_band",1:3:8:28:41:78:79'
             sendat_result=$(sendat 2 "$sendat_command")
             echo "SA自动: $sendat_result" >> /tmp/moduleInit
@@ -263,7 +255,7 @@
     fi
 
     if [ "$Band_NSA" != "$last_Band_NSA" ]; then
-        if [ "$Band_NSA" == 0 ]; then
+        if [ "$Band_NSA" = 0 ]; then
             sendat_command='AT+QNWPREFCFG="nsa_nr5g_band",41:78:79'
             sendat_result=$(sendat 2 "$sendat_command")
             echo "NSA自动: $sendat_result" >> /tmp/moduleInit

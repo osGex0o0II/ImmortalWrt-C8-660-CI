@@ -94,13 +94,13 @@ Quectel_Cellinfo()
         COPS_MCC=${COPSX:0:3}
         COPS_MNC=${COPSX:3:3}
         if [ "$COPS" = "-" ]; then
-            COPS=$(awk -F[\;] '/'$COPS'/ {print $2}' $ROOTER/signal/mccmnc.data)
+            COPS=$(awk -F[\;] '/'$COPS'/ {print $2}' /tmp/mccmnc.data 2>/dev/null)
             [ "x$COPS" = "x" ] && COPS="-"
         fi
     fi
 
     if [ "$COPS" = "-" ]; then
-        COPS=$(echo "$O" | awk -F[\"] '/^\+COPS: 0,0/ {print $2}')
+        COPS=$(echo "$OX" | awk -F[\"] '/^\+COPS: 0,0/ {print $2}')
         if [ "x$COPS" = "x" ]; then
             COPS="-"
             COPS_MCC="-"
@@ -109,7 +109,7 @@ Quectel_Cellinfo()
     fi
     COPS_MNC=" "$COPS_MNC
 
-    OX=$(echo "${OX//[ \"]/}")
+    OX=$(echo "$OX" | tr -d ' "')
     CID=""
     CID5=""
     RAT=""
@@ -164,10 +164,10 @@ Quectel_Cellinfo()
         fi
     fi
     REGSTAT=$(echo "$REGV" | cut -d, -f2)
-    if [ "$REGSTAT" == "5" -a "$COPS" != "-" ]; then
+    if [ "$REGSTAT" = "5" ] && [ "$COPS" != "-" ]; then
         COPS_MNC=$COPS_MNC" (Roaming)"
     fi
-    if [ -n "$CID" -a -n "$CID5" ] && [ "$RAT" == "13" -o "$RAT" == "10" ]; then
+    if [ -n "$CID" ] && [ -n "$CID5" ] && { [ "$RAT" = "13" ] || [ "$RAT" = "10" ]; }; then
         LAC="4G $LAC, 5G $LAC5"
         CID="4G $CID<br />5G $CID5"
         RNC="4G $RNC, 5G $RNC5"
@@ -453,7 +453,7 @@ Quectel_AT()
         QRSRP3=$(echo $QRSRP | cut -d, -f3)
         QRSRP4=$(echo $QRSRP | cut -d, -f4)
         QRSRPtype=$(echo $QRSRP | cut -d, -f5)
-        if [ "$QRSRPtype" == "NR5G" ]; then
+        if [ "$QRSRPtype" = "NR5G" ]; then
             if [ -n "$NR_SA" ]; then
                 RSCP=$QRSRP1
                 if [ -n "$QRPRP2" -a "$QRSRP2" != "-32768" ]; then
@@ -483,7 +483,7 @@ Quectel_AT()
             fi
         elif [ "$QRSRP2$QRSRP3$QRSRP4" != "-44-44-44" -a -z "$QENG5" ]; then
             RSCP=$QRSRP1
-            if [ "$QRSRP3$QRSRP4" == "-140-140" -o "$QRSRP3$QRSRP4" == "-44-44" -o "$QRSRP3$QRSRP4" == "-32768-32768" ]; then
+            if [ "$QRSRP3$QRSRP4" = "-140-140" ] || [ "$QRSRP3$QRSRP4" = "-44-44" ] || [ "$QRSRP3$QRSRP4" = "-32768-32768" ]; then
                 RSCP1="RxD "$(echo $QRSRP | cut -d, -f2)
             else
                 RSCP=$RSCP" dBm (RxD "$QRSRP2" dBm)<br />"$QRSRP3

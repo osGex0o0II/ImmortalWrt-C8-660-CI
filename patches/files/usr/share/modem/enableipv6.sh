@@ -117,7 +117,7 @@ if [ -z "$adb_device" ]; then
     printMsg "Device not enable ADB"
     if [ "$unlock_code" = "0" ]; then
         printMsg "Nothing to do, just exit"
-        return 0
+        exit 0
     else
         unlock_module_adb
     fi

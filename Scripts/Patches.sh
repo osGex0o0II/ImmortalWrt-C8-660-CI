@@ -62,6 +62,7 @@ INJECT_CASE() {
 LOG "Apply Patches"
 
 # 复制设备树文件
+shopt -s nullglob
 if [ -d "$PATCHES_DIR" ]; then
 	for DTS in "$PATCHES_DIR"/*.dts; do
 		[ -f "$DTS" ] || continue
@@ -75,7 +76,10 @@ MODEM_DST="$WRT_DIR/package/base-files/files"
 if [ -d "$MODEM_SRC" ]; then
 	LOG "Installing modem files from $MODEM_SRC to $MODEM_DST"
 	mkdir -p "$MODEM_DST"
-	cp -rLvf "$MODEM_SRC/"* "$MODEM_DST/"
+	for f in "$MODEM_SRC/"*; do
+		[ -e "$f" ] || continue
+		cp -rLvf "$f" "$MODEM_DST/"
+	done
 fi
 
 # 追加设备定义到 filogic.mk（幂等检查）
