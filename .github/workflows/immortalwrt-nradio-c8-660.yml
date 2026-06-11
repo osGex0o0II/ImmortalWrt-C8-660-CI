@@ -332,6 +332,17 @@ jobs:
             mv -f "$FILE" "./upload/$SHORT"
           done
 
+      - name: Cleanup Old Releases
+        run: |
+          KEEP=3
+          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 -q 'sort_by(.[]; .publishedAt) | .[0:-'"$KEEP"'] | .[].tagName' 2>/dev/null)
+          for TAG in $RELEASES; do
+            echo "Deleting release and tag: $TAG"
+            gh release delete "$TAG" --yes 2>/dev/null || true
+            git push --delete origin "$TAG" 2>/dev/null || true
+          done
+          echo "Cleanup done (kept last $KEEP releases)"
+
       - name: Prepare Release Info
         run: |
           if [ -z "$WRT_PW" ]; then
