@@ -1,5 +1,13 @@
 	nradio,wt9103)
-		hw_mac_addr=$(mtd_get_mac_ascii bdinfo "fac_mac ")
-		[ "$PHYNBR" = "0" ] && echo "$hw_mac_addr" > /sys${DEVPATH}/macaddress
-		[ "$PHYNBR" = "1" ] && macaddr_setbit_la $hw_mac_addr > /sys${DEVPATH}/macaddress
+		[ "$(cat /sys${DEVPATH}/macaddress 2>/dev/null)" != "00:00:00:00:00:00" ] && \
+			[ "$(cat /sys${DEVPATH}/macaddress 2>/dev/null)" != "ff:ff:ff:ff:ff:ff" ] && \
+			return 0
+		local hw_mac=""
+		hw_mac=$(mtd_get_mac_binary factory 0x4 2>/dev/null)
+		[ -n "$hw_mac" ] && [ "$hw_mac" != "00:00:00:00:00:00" ] || \
+			hw_mac=$(mtd_get_mac_ascii bdinfo "fac_mac ")
+		[ -n "$hw_mac" ] && [ "$hw_mac" != "00:00:00:00:00:00" ] || \
+			hw_mac=$(macaddr_random)
+		[ "$PHYNBR" = "0" ] && echo "$hw_mac" > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_setbit_la "$hw_mac" > /sys${DEVPATH}/macaddress
 		;;

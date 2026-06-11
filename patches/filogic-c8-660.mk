@@ -11,7 +11,7 @@ define Device/nradio_wt9103
   SUPPORTED_DEVICES := nradio,wt9103
   DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware \
 	kmod-usb-serial-option kmod-usb-net-cdc-ether kmod-usb-net-qmi-wwan \
-	kmod-usb3 automount
+	kmod-usb3 automount uqmi luci-proto-qmi
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
