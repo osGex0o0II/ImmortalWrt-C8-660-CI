@@ -88,6 +88,7 @@
         case "$Sim_Sel" in
             0)
                 printMsg "外置SIM卡"
+                echo 1 > /sys/class/gpio/cpe-sel0/value
                 sendat 2 "AT+QUIMSLOT=1"
                 echo 1 > /etc/simsel
                 sleep 2
@@ -141,7 +142,7 @@
             last_IMEI=-1
         fi
         IMEI=`uci -q get modem.@ndis[0].modify_imei`
-        if [ "$IMEI" != "$last_IMEI" ]; then
+        if [ -n "$IMEI" ] && [ "$IMEI" != "$last_IMEI" ]; then
             /usr/share/modem/moimei ${IMEI} 1>/dev/null 2>&1
             printMsg "IMEI: ${IMEI}"
             echo "修改IMEI $IMEI" >> /tmp/moduleInit
@@ -556,7 +557,7 @@
                     printMsg "Internet Connection Ready."
                     break
                 else
-                    printMsg "HTTP status code is not 204 for either URL. Retry $((count + 1))."
+                    printMsg "HTTP status code is not 204 for either URL. Retry $((wantstcount + 1))."
                 fi
                 sleep 2
                 wantstcount=$((wantstcount + 1))

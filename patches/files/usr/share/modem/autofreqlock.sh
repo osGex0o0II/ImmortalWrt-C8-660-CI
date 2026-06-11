@@ -4,27 +4,36 @@ PROGRAM="AutoFreqLock"
 printMsg() {
     local msg="$1"
     logger -t "${PROGRAM}" "${msg}"
-} #日志输出调用API
+}
 killall autofreqlock.sh
 
-networkMode=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $3}'|tr -d '\r\n'`
-printMsg "Network Mode $networkMode"
-if [ -n "$networkMode" ]; then
-    if echo "$networkMode" | grep -q "5G"; then
-        #NR-5G
-        earfcn=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $10}'|tr -d '\r\n'`
-        pci=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $8}'|tr -d '\r\n'`
-        band=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $11}'`
-        signalLevel=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $13}'`
-    elif echo "$networkMode" | grep -q "LTE"; then
-        #LTE
-        earfcn=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $9}'|tr -d '\r\n'`
-        pci=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $8}'|tr -d '\r\n'`
-        band=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $10}'`
-        signalLevel=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $14}'`
-    fi
-fi
+MAX_RETRIES=5
+RETRY_COUNT=0
+
 AutoLock() {
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        printMsg "Autolock max retries reached, giving up"
+        exit 1
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+
+    networkMode=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $3}'|tr -d '\r\n'`
+    printMsg "Network Mode $networkMode"
+    if [ -n "$networkMode" ]; then
+        if echo "$networkMode" | grep -q "5G"; then
+            #NR-5G
+            earfcn=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $10}'|tr -d '\r\n'`
+            pci=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $8}'|tr -d '\r\n'`
+            band=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $11}'`
+            signalLevel=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $13}'`
+        elif echo "$networkMode" | grep -q "LTE"; then
+            #LTE
+            earfcn=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $9}'|tr -d '\r\n'`
+            pci=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $8}'|tr -d '\r\n'`
+            band=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $10}'`
+            signalLevel=`sendat 2 'at+qeng="servingcell"'|grep "+QENG"|awk -F ',' '{print $14}'`
+        fi
+    fi
     if [ -n "$earfcn" ] && [ -n "$pci" ] && [ -n "$band" ] && [ -n "$signalLevel" ] && [ $signalLevel -gt -100 ]; then
         if echo "$networkMode" | grep -q "LTE"; then
             sendat 2 "at+qnwlock=\"common/4g\",1,$pci,$earfcn"
