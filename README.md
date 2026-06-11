@@ -1,5 +1,7 @@
 # ImmortalWrt-NRadio-C8-660
 
+[![Build](https://github.com/osGex0o0II/ImmortalWrt-C8-660-CI/actions/workflows/immortalwrt-nradio-c8-660.yml/badge.svg)](https://github.com/osGex0o0II/ImmortalWrt-C8-660-CI/actions/workflows/immortalwrt-nradio-c8-660.yml)
+
 NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 
 ## 硬件规格
@@ -126,6 +128,16 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
    - 使用 TFTP 工具上传 `factory.bin`
 4. 启动后浏览器访问 192.168.1.1
 
+### 产物说明
+
+| 文件 | 用途 |
+|------|------|
+| `factory.bin` | 从原厂 NROS 首次刷入（U-Boot TFTP） |
+| `sysupgrade.bin` | 同版本 OpenWrt 升级（LuCI → 系统 → 备份/升级） |
+| `initramfs.bin` | 内存启动镜像（进入 Shell 调试，不写入 Flash） |
+| `mt7981-bl2.bin` | BL2 引导（救砖/还原时配合 FIP 使用） |
+| `sha256sums` | 所有镜像的 SHA256 校验和 |
+
 ### 环境说明
 
 - CI 运行于 `ubuntu-latest` (GitHub Actions)，脚本针对 Linux (GNU sed/coreutils) 编写
@@ -139,6 +151,14 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 - `Scripts/` — 编译自定义脚本（主题、插件、系统设置）
 - `Config/` — 设备 Kconfig + 通用包配置
 - `patches/` — 设备树 (DTS) + filogic.mk 设备定义
+
+### 硬件参考
+
+5G 模组 GPIO 控制、SIM 槽切换、LED 引脚映射等硬件细节见以下源文件：
+
+- `patches/mt7981b-nradio-c8-660.dts` — 设备树（GPIO、LED、PHY、交换机定义）
+- `patches/files/usr/share/modem/rm520n.sh` — 5G 模组初始化脚本（simsel、cpe-pwr/ sel0 控制逻辑）
+- `patches/files/etc/config/modem` — 默认 SIM 选择配置
 
 ## 免责声明
 
