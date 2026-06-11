@@ -10,8 +10,11 @@ define Device/nradio_wt9103
   DEVICE_DTS_DIR := ../dts
   SUPPORTED_DEVICES := nradio,wt9103
   DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware \
-	kmod-usb-serial-option kmod-usb-net-cdc-ether kmod-usb-net-qmi-wwan \
-	kmod-usb3 automount uqmi luci-proto-qmi
+	kmod-usb-serial-option kmod-usb-serial-wwan kmod-usb-net-cdc-ether \
+	kmod-usb-net-qmi-wwan kmod-usb-wdm kmod-usb-net-cdc-ncm \
+	kmod-usb-net-huawei-cdc-ncm kmod-usb3 automount \
+	uqmi luci-proto-qmi sms-tool luci-app-sms-tool \
+	comgt comgt-ncm chat usb-modeswitch
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048

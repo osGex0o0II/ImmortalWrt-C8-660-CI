@@ -69,6 +69,15 @@ if [ -d "$PATCHES_DIR" ]; then
 	done
 fi
 
+# 安装 modem 管理文件（sendat + 脚本 + 配置 + 热插拔）
+MODEM_SRC="$PATCHES_DIR/files"
+MODEM_DST="$WRT_DIR/package/base-files/files"
+if [ -d "$MODEM_SRC" ]; then
+	LOG "Installing modem files from $MODEM_SRC to $MODEM_DST"
+	mkdir -p "$MODEM_DST"
+	cp -rLvf "$MODEM_SRC/"* "$MODEM_DST/"
+fi
+
 # 追加设备定义到 filogic.mk（幂等检查）
 for MK in "$PATCHES_DIR"/*.mk; do
 	[ -f "$MK" ] || continue
