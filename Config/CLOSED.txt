@@ -90,7 +90,6 @@ CONFIG_PACKAGE_kmod-sched-cake=y
 CONFIG_PACKAGE_kmod-sched-core=y
 CONFIG_PACKAGE_kmod-shortcut-fe=y
 CONFIG_PACKAGE_kmod-shortcut-fe-cm=y
-CONFIG_PACKAGE_kmod-nf-flow=y
 
 # --- V12 USB/5G 模块 ---
 CONFIG_PACKAGE_kmod-usb-core=y
