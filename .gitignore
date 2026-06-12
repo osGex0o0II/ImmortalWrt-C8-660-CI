@@ -2,3 +2,8 @@ Config/PRIVATE.txt
 Scripts/PRIVATE.sh
 *.swp
 *~
+*.log
+*.zip
+*.ipk
+artifacts.json
+check*.py

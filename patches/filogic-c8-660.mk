@@ -19,7 +19,7 @@ define Device/nradio_wt9103
 	ttyd luci-app-ttyd \
 	nlbwmon luci-app-nlbwmon \
 	miniupnpd luci-app-upnp \
-	socat luci-app-socat \
+	socat \
 	etherwake luci-app-wol \
 	luci-proto-3g \
 	tcpdump ethtool \
