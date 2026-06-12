@@ -145,6 +145,19 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
+      - name: Patch LuCI JS (fix formatStats crash)
+        run: |
+          cd ./wrt/
+          FILE="feeds/luci/luci-mod-status/htdocs/luci-static/resources/view/status/include/29_ports.js"
+          [ -f "$FILE" ] || { echo "FILE NOT FOUND: $FILE"; exit 1; }
+          # 注入安全转换函数 n() — undefined 转 0
+          sed -i 's/function formatStats(portdev,pse){const stats=portdev._devstate('\''stats'\'')||{};const items=/function formatStats(portdev,pse){const stats=portdev._devstate('\''stats'\'')||{},n=v=>+v||0;const items=/' "$FILE"
+          # 用 n() 包裹所有 stats.* 调用
+          for PROP in rx_bytes rx_packets multicast rx_errors rx_dropped tx_bytes tx_packets tx_errors tx_dropped; do
+            sed -i "s/\\.format(stats\\.$PROP)/.format(n(stats.$PROP))/g" "$FILE"
+          done
+          echo "Patched: $FILE"
+
       - name: Debug Custom Packages
         if: failure()
         run: |
