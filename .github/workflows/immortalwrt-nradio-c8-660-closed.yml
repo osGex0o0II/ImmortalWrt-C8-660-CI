@@ -14,8 +14,8 @@ env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   WRT_CONFIG: NRADIO-C8-660-CLOSED
   WRT_THEME: aurora
-  WRT_NAME: NRadio-C8-660
-  WRT_SSID: NRadio-WiFi
+  WRT_NAME: ImmortalWrt
+  WRT_SSID: ImmortalWriFi
   WRT_WORD: ${{ secrets.WRT_WORD || '' }}
   WRT_IP: 192.168.1.1
   WRT_PW: ${{ secrets.WRT_PW || '' }}
@@ -438,7 +438,7 @@ BBR
             ./wrt/upload/*.manifest
             ./wrt/upload/sha256sums
           body: |
-            ## NRadio C8-660 (MT7981) ImmortalWrt 固件 — 闭源驱动版
+            ## NRadio C8-660 (MT7981) ImmortalWrt 固件 — 闭源驱动版 (V12)
 
             ### 刷机说明
 
@@ -458,11 +458,21 @@ BBR
             | 源码 | ${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) |
             | 提交 | ${{env.WRT_HASH}} |
             | 内核 | ${{env.WRT_KVER}} |
-            | WiFi 驱动 | mt_wifi (MediaTek 专有) |
+            | WiFi 驱动 | mt_wifi (MediaTek 专有 v7.6.6.1) |
             | 登录地址 | ${{env.WRT_IP}} |
             | 登录密码 | ${{env.WRT_PW_DISPLAY}} |
             | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
+            | 主题 | Aurora |
             | 插件 | ${{env.WRT_LIST}} |
+
+            ### V12 兼容性
+
+            本版本克隆了 V12 系统配置，包含以下 V12 特有组件：
+            - mt_wifi 专有驱动 (v7.6.6.1) + WARP/HNAT 硬件加速
+            - MTK 专有工具: mtwifi-cfg, turboacc-mtk, eqos-mtk
+            - V12 插件: cpu-status, ledtrig-rssi/switch/usbport, ser2net, socat, sms-tool, zmodem
+            - V12 系统: autocore-arm, mhz, sendat
+            - shortcut-fe + OAF 流量加速
 
             **注意：** 本版本使用 MediaTek 闭源 WiFi 驱动 (mt_wifi)，基于 SDK 5.4 内核。与开源版本 (mt76 + mainline 6.x) 不通用。刷机风险自担。
 

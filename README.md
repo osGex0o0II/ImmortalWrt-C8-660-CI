@@ -57,24 +57,27 @@ ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 | **工作流** | `ImmortalWrt NRadio C8-660` | `ImmortalWrt NRadio C8-660 (Closed)` |
 | **源码** | immortalwrt/immortalwrt (master) | hanwckf/immortalwrt-mt798x (openwrt-21.02) |
 | **内核** | 6.x (mainline) | 5.4 (SDK) |
-| **WiFi 驱动** | mt76 (开源) | mt_wifi (MediaTek 专有) |
+| **WiFi 驱动** | mt76 (开源) | mt_wifi (MediaTek 专有 v7.6.6.1) |
 | **硬件加速** | WED (mt76) | WARP + HNAT (MTK) |
 | **设备支持** | 通过 patches/ 注入 | 已内置在源码中 |
 | **默认 IP** | 192.168.1.1 | 192.168.1.1 |
+| **默认主题** | Aurora | Aurora |
 | **固件前缀** | `immortalwrt-c8-660` | `immortalwrt-c8-660-closed` |
 
 ### 开源构建特点
 
 - 基于 mainline 内核，长期维护性好
 - mt76 开源驱动，社区支持
+- Aurora 主题，现代化 UI
 - 首次刷入需通过 U-Boot TFTP 模式
 - WiFi 校准数据依赖 factory 分区 EEPROM
 
-### 闭源构建特点
+### 闭源构建特点 (V12 克隆)
 
 - 基于 MTK SDK 5.4 内核，与原厂固件兼容性更好
-- mt_wifi 专有驱动，支持 MTK 完整功能集（DBDC、WARP、HNAT）
-- 包含 MTK 专有工具：mtwifi-cfg、turboacc-mtk、eqos-mtk
+- mt_wifi 专有驱动 (v7.6.6.1)，支持 MTK 完整功能集
+- 克隆 V12 系统配置，包含所有 V12 特有组件
+- 默认 IP 192.168.1.1，Aurora 主题
 - 已内置 C8-660 设备支持，无需额外 DTS 注入
 
 ## 编译信息（开源构建）
@@ -94,9 +97,9 @@ ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 
 本项目编译产物为 mainline 内核 (6.x)，与设备原厂 SDK 内核 (5.4) 引导链不兼容。本项目为**单系统固件**，首次刷入需通过 **U-Boot TFTP 恢复模式**，将整个 NAND 替换为 OpenWrt 单系统，**不可**直接在原厂 Web 升级，也不支持双系统切换。
 
-### 闭源构建
+### 闭源构建 (V12 克隆)
 
-闭源构建基于 MTK SDK 5.4 内核，与原厂固件内核版本相同，理论上兼容性更好。但首次从原厂 NROS 刷入仍建议通过 U-Boot TFTP 模式。闭源构建固件文件名包含 `closed` 前缀，与开源版本互不通用。
+闭源构建基于 MTK SDK 5.4 内核，与 V12 系统完全兼容。默认 IP 为 192.168.66.1（与 V12 一致），使用 bootstrap 主题。首次从原厂 NROS 刷入仍建议通过 U-Boot TFTP 模式。闭源构建固件文件名包含 `closed` 前缀，与开源版本互不通用。
 
 刷机前**必须备份 FIP / bl2 分区**：
 
@@ -128,9 +131,11 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 - [tltv1212/Nradio-Firmware-Selector](https://github.com/tltv1212/Nradio-Firmware-Selector) — NRadio 鲲鹏 C8 系列固件下载列表
 - [duhaoyang520-collab/bl-mt7981](https://github.com/duhaoyang520-collab/bl-mt7981) — ATF / U-Boot 编译工具（救砖参考）
 
-## 闭源构建专有包
+## 闭源构建专有包 (V12 克隆)
 
-闭源构建额外包含以下 MTK 专有组件：
+闭源构建克隆了 V12 系统配置，包含以下 MTK 专有组件和 V12 特有包：
+
+### MTK 专有组件
 
 | 包名 | 说明 |
 |------|------|
@@ -145,6 +150,35 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 | luci-app-eqos-mtk | MTK QoS 流量控制 |
 | mtk-smp | MediaTek SMP 多核优化 |
 | mtkhqos_util | MediaTek HQoS 工具 |
+| mii_mgr | MediaTek MII 管理器 |
+| regs | MediaTek 寄存器工具 |
+
+### V12 特有插件
+
+| 包名 | 说明 |
+|------|------|
+| luci-app-cpu-status | CPU 状态监控 |
+| luci-app-ledtrig-rssi | RSSI LED 触发器 |
+| luci-app-ledtrig-switch | 开关 LED 触发器 |
+| luci-app-ledtrig-usbport | USB 端口 LED 触发器 |
+| luci-app-ser2net | 串口转网络 |
+| luci-app-socat | 多功能网络工具 |
+| luci-app-sms-tool | 短信工具 |
+| luci-app-zmodem | ZModem 传输 |
+| luci-app-log | 系统日志 |
+| autocore-arm | 自动核心工具 |
+| mhz | CPU 频率检测 |
+| sendat | AT 命令工具 |
+| sms-tool | 短信收发工具 |
+
+### V12 网络加速
+
+| 包名 | 说明 |
+|------|------|
+| kmod-shortcut-fe | Shortcut Forwarding Engine |
+| kmod-shortcut-fe-cm | SFE Connection Manager |
+| kmod-oaf | Open Application Firewall |
+| kmod-pf-ring | PF_RING 高性能抓包 |
 
 ## 高级特性
 

@@ -7,3 +7,10 @@
 # 设备支持: 通过 patches/ 注入 DTS + filogic.mk
 #
 # 本文件为开源构建标识，实际配置由 GENERAL.txt + NRADIO-C8-660.txt 提供。
+
+# --- 开源构建专用: Aurora 主题 ---
+CONFIG_PACKAGE_luci-theme-aurora=y
+CONFIG_PACKAGE_luci-app-aurora-config=y
+
+# --- 开源构建专用: 分区扩容 ---
+CONFIG_PACKAGE_luci-app-partexp=y
