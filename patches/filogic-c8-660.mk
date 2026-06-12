@@ -23,6 +23,7 @@ define Device/nradio_wt9103
 	etherwake luci-app-wol \
 	luci-proto-3g \
 	tcpdump ethtool \
+	irqbalance \
 	nano unzip wget-ssl
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k

@@ -26,6 +26,12 @@ CONFIG_PACKAGE_unzip=y
 # --- 禁用不需要的默认插件 ---
 CONFIG_PACKAGE_luci-app-attendedsysupgrade=n
 
+# --- 内核模块: BBR TCP 拥塞控制 ---
+CONFIG_PACKAGE_kmod-tcp-bbr=y
+
+# --- 系统工具: IRQ 均衡 ---
+CONFIG_PACKAGE_irqbalance=y
+
 # --- 构建优化 ---
 CONFIG_CCACHE=y
 

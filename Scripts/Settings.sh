@@ -105,3 +105,32 @@ net.core.netdev_budget=600
 net.core.netdev_budget_usecs=8000
 SYSCTL
 echo "Network stack tuning applied"
+
+# === 启用防火墙流卸载 (Flow Offloading) ===
+FW_CONF="./package/network/config/firewall/files/firewall.config"
+if [ -f "$FW_CONF" ]; then
+	sed -i "s/option flow_offloading '0'/option flow_offloading '1'/g" "$FW_CONF"
+	sed -i "s/option flow_offloading_hw '0'/option flow_offloading_hw '1'/g" "$FW_CONF"
+	echo "Firewall flow offloading enabled"
+else
+	echo "WARNING: $FW_CONF not found — flow offloading not set" >&2
+fi
+
+# === BBR 默认拥塞控制 + 更多 sysctl 优化 ===
+cat >> ./package/base-files/files/etc/sysctl.d/90-wifi-tune.conf << 'BBR'
+
+# BBR TCP 拥塞控制
+net.ipv4.tcp_congestion_control=bbr
+net.core.default_qdisc=fq
+
+# TCP 快速打开
+net.ipv4.tcp_fastopen=3
+
+# 连接跟踪优化
+net.netfilter.nf_conntrack_max=65536
+net.netfilter.nf_conntrack_buckets=8192
+
+# IRQ 均衡辅助
+net.core.rps_sock_flow_entries=32768
+BBR
+echo "BBR + sysctl optimizations applied"
