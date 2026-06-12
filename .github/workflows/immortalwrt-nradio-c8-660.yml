@@ -148,8 +148,9 @@ jobs:
       - name: Patch LuCI JS (fix formatStats crash)
         run: |
           cd ./wrt/
-          FILE="feeds/luci/luci-mod-status/htdocs/luci-static/resources/view/status/include/29_ports.js"
-          [ -f "$FILE" ] || { echo "FILE NOT FOUND: $FILE"; exit 1; }
+          FILE=$(find feeds/luci -path "*/29_ports.js" -print -quit 2>/dev/null)
+          [ -n "$FILE" ] && [ -f "$FILE" ] || { echo "29_ports.js NOT FOUND in feeds/luci"; exit 1; }
+          echo "Patching: $FILE"
           # 注入安全转换函数 n() — undefined 转 0
           sed -i "s/const stats = portdev._devstate('stats') || {};/const stats = portdev._devstate('stats') || {}, n=v=>+v||0;/" "$FILE"
           # 用 n() 包裹所有 stats.* 调用

@@ -15,7 +15,7 @@ function index()
 	entry({"admin", "modem", "readsms"},template("modem/readsms"),translate("Received Messages"), 20)
  	entry({"admin", "modem", "sendsms"},template("modem/sendsms"),translate("Send Messages"), 30)
 	if nixio.fs.access("/etc/config/sms_tool") then
-        entry({"admin", "modem", "smsconfig"}, cbi("sms_tool/smsconfig"),translate("Configuration"), 50)
+        entry({"admin", "modem", "smsconfig"}, cbi("smsconfig"), translate("Configuration"), 50)
     end
 	entry({"admin", "modem", "delete_one"}, call("delete_sms", smsindex), nil).leaf = true
 	entry({"admin", "modem", "delete_all"}, call("delete_all_sms"), nil).leaf = true
