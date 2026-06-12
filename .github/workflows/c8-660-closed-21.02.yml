@@ -2,7 +2,7 @@
 # Copyright (C) 2026 VIKINGYFY
 
 # ImmortalWrt 固件编译 — NRadio C8-660 (MT7981) 闭源驱动版
-name: ImmortalWrt NRadio C8-660 (Closed)
+name: C8-660 Closed 21.02 (mt_wifi 5.4)
 
 on:
   workflow_dispatch:
@@ -63,7 +63,7 @@ jobs:
           echo "CCACHE_DIR=$(pwd)/wrt/.ccache" >> $GITHUB_ENV
           echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")-${RANDOM}" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
-          echo "WRT_INFO=immortalwrt-closed" >> $GITHUB_ENV
+          echo "WRT_INFO=immortalwrt-closed-21.02" >> $GITHUB_ENV
           echo "WRT_TARGET=nradio_wt9103_512m" >> $GITHUB_ENV
           echo "WRT_WIFI=wifi-closed" >> $GITHUB_ENV
           echo "WRT_KVER=5.4" >> $GITHUB_ENV

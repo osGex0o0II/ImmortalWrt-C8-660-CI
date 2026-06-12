@@ -2,7 +2,7 @@
 # Copyright (C) 2026 VIKINGYFY
 
 # ImmortalWrt 固件编译 — NRadio C8-660 (MT7981)
-name: ImmortalWrt NRadio C8-660
+name: C8-660 Open (mt76)
 
 on:
   workflow_dispatch:

@@ -1,6 +1,6 @@
 # ImmortalWrt-NRadio-C8-660
 
-[![Build](https://github.com/osGex0o0II/ImmortalWrt-C8-660-CI/actions/workflows/immortalwrt-nradio-c8-660.yml/badge.svg)](https://github.com/osGex0o0II/ImmortalWrt-C8-660-CI/actions/workflows/immortalwrt-nradio-c8-660.yml)
+[![Build](https://github.com/osGex0o0II/ImmortalWrt-C8-660-CI/actions/workflows/c8-660-open.yml/badge.svg)](https://github.com/osGex0o0II/ImmortalWrt-C8-660-CI/actions/workflows/c8-660-open.yml)
 
 NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 
@@ -237,8 +237,9 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 ## 目录结构
 
 - `.github/workflows/` — CI 工作流
-  - `immortalwrt-nradio-c8-660.yml` — 开源构建 (mt76 + mainline 6.x)
-  - `immortalwrt-nradio-c8-660-closed.yml` — 闭源构建 (mt_wifi + SDK 5.4)
+   - `c8-660-open.yml` — 开源构建 (mt76 + mainline 6.x, ImmortalWrt master)
+   - `c8-660-closed-21.02.yml` — 闭源构建 (mt_wifi + SDK 5.4, hanwckf/immortalwrt-mt798x)
+   - `c8-660-closed-24.10.yml` — 闭源构建 24.10 (mt_wifi + kernel 6.6, padavanonly/immortalwrt-mt798x-24.10)
 - `Scripts/` — 编译自定义脚本（主题、插件、系统设置）
 - `Config/` — 设备 Kconfig + 通用包配置 + 变体配置
   - `GENERAL.txt` — 通用包配置（两种变体共享）
