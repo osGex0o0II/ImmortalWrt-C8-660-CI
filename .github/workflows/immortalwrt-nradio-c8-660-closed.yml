@@ -1,0 +1,473 @@
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2026 VIKINGYFY
+
+# ImmortalWrt 固件编译 — NRadio C8-660 (MT7981) 闭源驱动版
+name: ImmortalWrt NRadio C8-660 (Closed)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  WRT_CONFIG: NRADIO-C8-660-CLOSED
+  WRT_THEME: aurora
+  WRT_NAME: NRadio-C8-660
+  WRT_SSID: NRadio-WiFi
+  WRT_WORD: ${{ secrets.WRT_WORD || '' }}
+  WRT_IP: 192.168.1.1
+  WRT_PW: ${{ secrets.WRT_PW || '' }}
+  WRT_REPO: https://github.com/hanwckf/immortalwrt-mt798x
+  WRT_BRANCH: openwrt-21.02
+
+jobs:
+  build:
+    name: immortalwrt-c8-660-closed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout Projects
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Initialization Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt -yqq purge firefox 2>/dev/null || true
+          sudo -E apt -yqq update && sudo -E apt -yqq full-upgrade && sudo -E apt -yqq install -y dos2unix libfuse-dev git curl wget file jq unzip && sudo -E apt -yqq autoremove --purge && sudo -E apt -yqq autoclean
+          curl -fsSL --retry 3 "https://build-scripts.immortalwrt.org/init_build_environment.sh" -o /tmp/init_build_env.sh
+          echo "init_build_env.sh SHA256: $(sha256sum /tmp/init_build_env.sh | cut -d' ' -f1)"
+          if [ -n "${INIT_BUILD_EXPECTED_SHA256:-}" ]; then
+            echo "$INIT_BUILD_EXPECTED_SHA256 /tmp/init_build_env.sh" | sha256sum -c --status || {
+              echo "::error::init_build_env.sh SHA256 MISMATCH — refusing to run"
+              exit 1
+            }
+            echo "init_build_env.sh SHA256 verified ✓"
+          else
+            echo "::warning::INIT_BUILD_EXPECTED_SHA256 not set — running unverified script"
+          fi
+          sudo bash /tmp/init_build_env.sh
+          sudo -E systemctl daemon-reload
+          sudo -E timedatectl set-timezone "Asia/Shanghai"
+
+          sudo mkdir -p /mnt/build_wrt
+          sudo chown $USER:$USER /mnt/build_wrt
+          sudo ln -s /mnt/build_wrt $GITHUB_WORKSPACE/wrt
+
+      - name: Initialization Values
+        run: |
+          echo "CCACHE_DIR=$(pwd)/wrt/.ccache" >> $GITHUB_ENV
+          echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")-${RANDOM}" >> $GITHUB_ENV
+          echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
+          echo "WRT_INFO=immortalwrt-closed" >> $GITHUB_ENV
+          echo "WRT_TARGET=nradio_wt9103_512m" >> $GITHUB_ENV
+          echo "WRT_WIFI=wifi-closed" >> $GITHUB_ENV
+          echo "WRT_KVER=5.4" >> $GITHUB_ENV
+          echo "WRT_LIST=none" >> $GITHUB_ENV
+
+      - name: Clone Code
+        run: |
+          git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
+
+          cd ./wrt/ && echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
+
+      - name: Apply Patches (LED/Network/WiFi MAC)
+        run: |
+          # 闭源构建使用 hanwckf SDK，DTS 和设备定义已内置
+          # 仅注入 LED、网络接口、WiFi MAC 补丁（SDK 已包含，为幂等操作）
+          export GITHUB_WORKSPACE="$GITHUB_WORKSPACE"
+          PATCHES_DIR="$GITHUB_WORKSPACE/patches"
+
+          LOG() { echo "=== $* ==="; }
+
+          INJECT_CASE() {
+            local FILE="$1"
+            local SNIPPET="$2"
+            local MARKER="$3"
+            local OCCURRENCE="${4:-1}"
+
+            [ -f "$FILE" ] || { LOG "SKIP (not found): $FILE"; return 0; }
+            [ -f "$SNIPPET" ] || { LOG "SKIP (snippet not found): $SNIPPET"; return 0; }
+            if grep -q "$MARKER" "$FILE"; then
+              LOG "ALREADY PATCHED ($MARKER): $FILE"
+            else
+              LOG "PATCHING: $FILE with $SNIPPET"
+              SNIPPET_TMP="$(mktemp)"
+              cat "$SNIPPET" > "$SNIPPET_TMP"
+              if awk -v occ="$OCCURRENCE" '
+                BEGIN { count = 0 }
+                /^[[:space:]]*esac$/ {
+                  count++
+                  if (count == occ) {
+                    while ((getline line < "'"$SNIPPET_TMP"'") > 0)
+                      print line
+                    close("'"$SNIPPET_TMP"'")
+                  }
+                }
+                { print }
+              ' "$FILE" > "$FILE.tmp"; then
+                mv "$FILE.tmp" "$FILE"
+                rm -f "$SNIPPET_TMP"
+                LOG "PATCHED ($OCCURRENCE): $FILE"
+              else
+                rm -f "$FILE.tmp" "$SNIPPET_TMP"
+                LOG "FAILED: $FILE"
+              fi
+            fi
+          }
+
+          # LED 定义（SDK 路径: target/linux/mediatek/mt7981/base-files/etc/board.d/）
+          LED_FILE="./wrt/target/linux/mediatek/mt7981/base-files/etc/board.d/01_leds"
+          INJECT_CASE "$LED_FILE" "$PATCHES_DIR/01_leds.snippet" "nradio,wt9103"
+
+          # WiFi MAC 修复
+          MAC_FILE="./wrt/target/linux/mediatek/mt7981/base-files/etc/hotplug.d/ieee80211/11_fix_wifi_mac"
+          INJECT_CASE "$MAC_FILE" "$PATCHES_DIR/11_fix_wifi_mac.snippet" "nradio,wt9103"
+
+          # 网络接口定义
+          NET_FILE="./wrt/target/linux/mediatek/mt7981/base-files/etc/board.d/02_network"
+          INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_interfaces.snippet" "nradio,wt9103)" 1
+
+          # MAC 地址分配
+          INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2
+
+      - name: Check Scripts
+        run: |
+          find ./ -maxdepth 3 -type f -iname "*.sh" -exec dos2unix {} \; -exec chmod +x {} \;
+          find ./ -maxdepth 3 -type f -iname "*.txt" -exec dos2unix {} \;
+          find ./ -maxdepth 3 -type f -iname "*.mk" -exec dos2unix {} \;
+
+      - name: Check Caches
+        id: check-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          key: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_HASH}}
+          restore-keys: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}
+          path: |
+            ./wrt/.ccache
+            ./wrt/feeds
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+            ./wrt/dl
+
+      - name: Update Caches
+        run: |
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
+          if [ -d "./wrt/staging_dir" ]; then
+            cd ./wrt/
+            rm -rf build_dir staging_dir/target* tmp 2>/dev/null || true
+            mkdir -p tmp && echo "1" > tmp/.build
+            find "staging_dir" -type d -name "stamp" -not -path "*target*" 2>/dev/null | while read -r DIR; do
+              find "$DIR" -type f -exec touch {} + 2>/dev/null || true
+            done
+            echo "toolchain clean done!"
+          else
+            echo "caches missed!"
+          fi
+
+          if ${{steps.check-cache.outputs.cache-hit != 'true'}}; then
+            CACHE_LIST=$(gh cache list --key "$WRT_CONFIG-$WRT_INFO" --limit 100 | cut -f 1)
+            for CACHE_KEY in $CACHE_LIST; do
+              gh cache delete $CACHE_KEY
+            done
+
+            echo "caches cleanup done!"
+          fi
+
+      - name: Update Feeds
+        run: |
+          cd ./wrt/
+
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Custom Packages
+        run: |
+          trap 'echo "::error::Failed at line $LINENO with exit $?" >&2' ERR
+
+          cd ./wrt/package/ || { echo "::error::cd ./wrt/package/ failed" >&2; exit 1; }
+
+          {
+            $GITHUB_WORKSPACE/Scripts/Packages.sh
+            $GITHUB_WORKSPACE/Scripts/Handles.sh
+          } 2>&1 | tee /tmp/packages.log
+
+      - name: Custom Settings
+        run: |
+          cd ./wrt/
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
+
+          # 闭源构建: GENERAL.txt + CLOSED.txt + NRADIO-C8-660-CLOSED.txt
+          cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/CLOSED.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
+
+          # 修改默认 IP/主机名
+          CFG_FILE="./package/base-files/files/bin/config_generate"
+          if [ -f "$CFG_FILE" ]; then
+            sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$CFG_FILE"
+            sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" "$CFG_FILE"
+          fi
+
+          # 修改默认主题
+          ATTENDED_MAKEFILE="./feeds/luci/collections/luci/Makefile"
+          if [ -f "$ATTENDED_MAKEFILE" ]; then
+            sed -i "/attendedsysupgrade/d" "$ATTENDED_MAKEFILE"
+            sed -i "s|luci-theme-bootstrap|luci-theme-$WRT_THEME|g" "$ATTENDED_MAKEFILE"
+          fi
+
+          # 修改 luci 关联 IP
+          FLASH_JS="./feeds/luci/modules/luci-mod-system/htdocs/luci-static/resources/view/system/flash.js"
+          if [ -f "$FLASH_JS" ]; then
+            sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$FLASH_JS"
+          fi
+
+          # 添加编译日期标识
+          STATUS_JS="./feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/10_system.js"
+          if [ -f "$STATUS_JS" ]; then
+            sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" "$STATUS_JS"
+          fi
+
+          # 配置文件
+          echo "CONFIG_PACKAGE_luci=y" >> ./.config
+          echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
+
+          # 引入私有扩展配置
+          if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then
+            echo "Applying private configurations from PRIVATE.txt..."
+            cat $GITHUB_WORKSPACE/Config/PRIVATE.txt >> ./.config
+          fi
+
+          # 网络栈 buffer 优化
+          mkdir -p ./package/base-files/files/etc/sysctl.d
+          cat > ./package/base-files/files/etc/sysctl.d/90-wifi-tune.conf << 'SYSCTL'
+# mt_wifi 网络栈优化
+net.core.rmem_default=262144
+net.core.wmem_default=262144
+net.core.rmem_max=4194304
+net.core.wmem_max=4194304
+net.core.netdev_budget=600
+net.core.netdev_budget_usecs=8000
+SYSCTL
+          echo "Network stack tuning applied"
+
+          # 防火墙流卸载
+          FW_CONF="./package/network/config/firewall/files/firewall.config"
+          if [ -f "$FW_CONF" ]; then
+            sed -i "s/option flow_offloading '0'/option flow_offloading '1'/g" "$FW_CONF"
+            sed -i "s/option flow_offloading_hw '0'/option flow_offloading_hw '1'/g" "$FW_CONF"
+          fi
+
+          # BBR + sysctl 优化
+          cat >> ./package/base-files/files/etc/sysctl.d/90-wifi-tune.conf << 'BBR'
+
+# BBR TCP 拥塞控制
+net.ipv4.tcp_congestion_control=bbr
+net.core.default_qdisc=fq
+
+# TCP 快速打开
+net.ipv4.tcp_fastopen=3
+
+# 连接跟踪优化
+net.netfilter.nf_conntrack_max=65536
+net.netfilter.nf_conntrack_buckets=8192
+
+# IRQ 均衡辅助
+net.core.rps_sock_flow_entries=32768
+BBR
+          echo "BBR + sysctl optimizations applied"
+
+          echo "=== .config before defconfig ==="
+          grep '^CONFIG_TARGET' .config || echo "No CONFIG_TARGET lines in .config"
+
+          if ! make defconfig -j$(nproc); then
+            echo "ERROR: make defconfig failed!"
+            cat .config
+            exit 1
+          fi
+
+          echo "=== .config after defconfig ==="
+          grep '^CONFIG_TARGET' .config || echo "No CONFIG_TARGET lines after defconfig"
+
+          SELECTED_DEVICE=$(grep -oP '^CONFIG_TARGET_DEVICE_[\w]+_DEVICE_\K[\w-]+(?=\=y)' .config | head -1)
+          echo "Selected device: '$SELECTED_DEVICE'"
+          if [ "$SELECTED_DEVICE" != "nradio_wt9103_512m" ]; then
+            echo "::error::WRONG DEVICE: expected nradio_wt9103_512m, got '$SELECTED_DEVICE'"
+            exit 1
+          fi
+          echo "OK: Device nradio_wt9103_512m selected correctly"
+
+      - name: Download Packages
+        run: |
+          cd ./wrt/
+
+          make download -j$(nproc)
+
+      - name: Check Disk Space
+        run: |
+          echo "=== DISK SPACE AFTER DOWNLOAD ==="
+          df -h
+          echo "=== TOP 10 LARGE DIRS ==="
+          du -sh ./wrt/* 2>/dev/null | sort -rh | head -10
+
+      - name: Compile Firmware
+        timeout-minutes: ${{ steps.check-cache.outputs.cache-hit == 'true' && 120 || 300 }}
+        run: |
+          cd ./wrt/
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
+
+          set -o pipefail
+          make -j$(nproc) V=s 2>&1 | tee build.log
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo ""
+            echo "========================================"
+            echo "=== BUILD FAILED — LAST 50 ERRORS ==="
+            echo "========================================"
+            grep -iE 'error|conflict|failed|No such|No rule|cannot|denied' build.log | tail -50
+            exit 1
+          fi
+
+      - name: Upload Build Log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: build-log-${{env.WRT_CONFIG}}
+          path: ./wrt/build.log
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Upload Packages Debug
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: packages-debug-${{env.WRT_CONFIG}}
+          path: /tmp/packages.log
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Upload Config Snapshot
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: config-snapshot-${{env.WRT_CONFIG}}
+          path: |
+            ./wrt/.config
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Machine Information
+        if: failure()
+        run: |
+          cd ./wrt/
+
+          echo "======================="
+          lscpu | grep -E "name|Core|Thread"
+          echo "======================="
+          df -h
+          echo "======================="
+          du -h --max-depth=1
+          echo "======================="
+
+      - name: Package Firmware
+        run: |
+          cd ./wrt/ && mkdir ./upload/
+
+          echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
+          echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
+
+          find ./bin/targets/ -iregex ".*\(buildinfo\|json\|packages\)$" -exec rm -rf {} +
+
+          # 保留关键镜像，统一命名
+          for FILE in $(find ./bin/targets/ -type f -iname "*factory*" -o -iname "*sysupgrade*" -o -iname "*initramfs*" -o -iname "*bl2*" -o -iname "*manifest*" -o -iname "*sha256sums*" -o -iname "*.dtb" 2>/dev/null); do
+            BASENAME=$(basename "$FILE")
+            cp -f "$FILE" "./upload/$BASENAME"
+          done
+
+          # 只保留 C8-660 所需的 BL2
+          find ./upload/ -type f -iname "*bl2*" ! -iname "mt7981*" -delete
+
+          # 固件重命名
+          for FILE in ./upload/*.bin; do
+            [ -f "$FILE" ] || continue
+            BASE=$(basename "$FILE")
+            case "$BASE" in
+              *squashfs-factory*)  SHORT="immortalwrt-c8-660-closed-factory.bin" ;;
+              *squashfs-sysupgrade*) SHORT="immortalwrt-c8-660-closed-sysupgrade.bin" ;;
+              *initramfs*)        SHORT="immortalwrt-c8-660-closed-initramfs.bin" ;;
+              *bl2*)              SHORT="mt7981-bl2-closed.bin" ;;
+              *)                  continue ;;
+            esac
+            mv -f "$FILE" "./upload/$SHORT"
+          done
+
+      - name: Cleanup Old Releases
+        run: |
+          KEEP=3
+          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 -q 'sort_by(.[]; .publishedAt) | .[0:-'"$KEEP"'] | .[].tagName' 2>/dev/null) || true
+          for TAG in $RELEASES; do
+            echo "Deleting release and tag: $TAG"
+            gh release delete "$TAG" --yes 2>/dev/null || true
+            git push --delete origin "$TAG" 2>/dev/null || true
+          done
+          echo "Cleanup done (kept last $KEEP releases)"
+
+      - name: Prepare Release Info
+        run: |
+          if [ -z "$WRT_PW" ]; then
+            echo "WRT_PW_DISPLAY=（无）" >> $GITHUB_ENV
+          else
+            echo "WRT_PW_DISPLAY=$WRT_PW" >> $GITHUB_ENV
+          fi
+          if [ -z "$WRT_WORD" ]; then
+            echo "WRT_WORD_DISPLAY=（无密码，开放）" >> $GITHUB_ENV
+          else
+            echo "WRT_WORD_DISPLAY=$WRT_WORD" >> $GITHUB_ENV
+          fi
+
+      - name: Release Firmware
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
+        with:
+          tag_name: immortalwrt-c8-660-closed-${{env.WRT_DATE}}
+          files: |
+            ./wrt/upload/immortalwrt-c8-660-closed-factory.bin
+            ./wrt/upload/immortalwrt-c8-660-closed-sysupgrade.bin
+            ./wrt/upload/immortalwrt-c8-660-closed-initramfs.bin
+            ./wrt/upload/mt7981-bl2-closed.bin
+            ./wrt/upload/*.manifest
+            ./wrt/upload/sha256sums
+          body: |
+            ## NRadio C8-660 (MT7981) ImmortalWrt 固件 — 闭源驱动版
+
+            ### 刷机说明
+
+            **首次刷机（从原厂 NROS 刷入）：**
+            1. 按住 Reset 按键上电，进入 U-Boot TFTP 恢复模式
+            2. 电脑设置静态 IP 192.168.1.x（如 192.168.1.2）
+            3. 使用 TFTP 客户端上传 `immortalwrt-c8-660-closed-factory.bin`
+            4. 等待 3-5 分钟，访问 http://192.168.1.1
+
+            **升级（同版本 OpenWrt）：**
+            - LuCI → 系统 → 备份/升级 → 刷写固件 → 选择 `immortalwrt-c8-660-closed-sysupgrade.bin`
+
+            ### 固件信息
+
+            | 项目 | 值 |
+            |------|-----|
+            | 源码 | ${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) |
+            | 提交 | ${{env.WRT_HASH}} |
+            | 内核 | ${{env.WRT_KVER}} |
+            | WiFi 驱动 | mt_wifi (MediaTek 专有) |
+            | 登录地址 | ${{env.WRT_IP}} |
+            | 登录密码 | ${{env.WRT_PW_DISPLAY}} |
+            | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
+            | 插件 | ${{env.WRT_LIST}} |
+
+            **注意：** 本版本使用 MediaTek 闭源 WiFi 驱动 (mt_wifi)，基于 SDK 5.4 内核。与开源版本 (mt76 + mainline 6.x) 不通用。刷机风险自担。
+
+      - name: Clean Build Workspace
+        if: always()
+        run: |
+          cd ./wrt/
+          make clean -j$(nproc)

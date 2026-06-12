@@ -48,7 +48,36 @@ usb-storage/extras/uas
 autocore, automount, blkid, cpufreq, curl, htop,
 ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 
-## 编译信息
+## 编译变体
+
+本项目支持两种构建变体，分别使用开源和闭源 WiFi 驱动：
+
+| | 开源构建 (Open) | 闭源构建 (Closed) |
+|--|--|--|
+| **工作流** | `ImmortalWrt NRadio C8-660` | `ImmortalWrt NRadio C8-660 (Closed)` |
+| **源码** | immortalwrt/immortalwrt (master) | hanwckf/immortalwrt-mt798x (openwrt-21.02) |
+| **内核** | 6.x (mainline) | 5.4 (SDK) |
+| **WiFi 驱动** | mt76 (开源) | mt_wifi (MediaTek 专有) |
+| **硬件加速** | WED (mt76) | WARP + HNAT (MTK) |
+| **设备支持** | 通过 patches/ 注入 | 已内置在源码中 |
+| **默认 IP** | 192.168.1.1 | 192.168.1.1 |
+| **固件前缀** | `immortalwrt-c8-660` | `immortalwrt-c8-660-closed` |
+
+### 开源构建特点
+
+- 基于 mainline 内核，长期维护性好
+- mt76 开源驱动，社区支持
+- 首次刷入需通过 U-Boot TFTP 模式
+- WiFi 校准数据依赖 factory 分区 EEPROM
+
+### 闭源构建特点
+
+- 基于 MTK SDK 5.4 内核，与原厂固件兼容性更好
+- mt_wifi 专有驱动，支持 MTK 完整功能集（DBDC、WARP、HNAT）
+- 包含 MTK 专有工具：mtwifi-cfg、turboacc-mtk、eqos-mtk
+- 已内置 C8-660 设备支持，无需额外 DTS 注入
+
+## 编译信息（开源构建）
 
 | 项目 | 值 |
 |------|-----|
@@ -61,7 +90,13 @@ ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 
 ## 已知风险与救砖
 
+### 开源构建
+
 本项目编译产物为 mainline 内核 (6.x)，与设备原厂 SDK 内核 (5.4) 引导链不兼容。本项目为**单系统固件**，首次刷入需通过 **U-Boot TFTP 恢复模式**，将整个 NAND 替换为 OpenWrt 单系统，**不可**直接在原厂 Web 升级，也不支持双系统切换。
+
+### 闭源构建
+
+闭源构建基于 MTK SDK 5.4 内核，与原厂固件内核版本相同，理论上兼容性更好。但首次从原厂 NROS 刷入仍建议通过 U-Boot TFTP 模式。闭源构建固件文件名包含 `closed` 前缀，与开源版本互不通用。
 
 刷机前**必须备份 FIP / bl2 分区**：
 
@@ -93,6 +128,24 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 - [tltv1212/Nradio-Firmware-Selector](https://github.com/tltv1212/Nradio-Firmware-Selector) — NRadio 鲲鹏 C8 系列固件下载列表
 - [duhaoyang520-collab/bl-mt7981](https://github.com/duhaoyang520-collab/bl-mt7981) — ATF / U-Boot 编译工具（救砖参考）
 
+## 闭源构建专有包
+
+闭源构建额外包含以下 MTK 专有组件：
+
+| 包名 | 说明 |
+|------|------|
+| kmod-mt_wifi | MediaTek 专有 WiFi 驱动 (v7.6.6.1) |
+| kmod-conninfra | 连接基础设施模块 |
+| kmod-warp | WiFi 硬件加速引擎 (WARP v2) |
+| kmod-mediatek_hnat | MediaTek 硬件 NAT |
+| wifi-dats | WiFi DAT 校准数据文件 |
+| mtwifi-cfg | WiFi 配置管理工具 |
+| luci-app-mtwifi-cfg | LuCI WiFi 配置界面 |
+| luci-app-turboacc-mtk | MTK 网络加速 (HNAT/WARP) |
+| luci-app-eqos-mtk | MTK QoS 流量控制 |
+| mtk-smp | MediaTek SMP 多核优化 |
+| mtkhqos_util | MediaTek HQoS 工具 |
+
 ## 高级特性
 
 本项目在标准 ImmortalWrt 编译流程基础上，增加了以下优化：
@@ -120,7 +173,9 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 
 ## 使用流程
 
-1. GitHub Actions 手动触发 `ImmortalWrt NRadio C8-660` 工作流（`workflow_dispatch`）
+1. GitHub Actions 手动触发对应工作流：
+   - **开源构建**: `ImmortalWrt NRadio C8-660`（使用 mt76 开源驱动）
+   - **闭源构建**: `ImmortalWrt NRadio C8-660 (Closed)`（使用 mt_wifi 专有驱动）
 2. 下载产物 `factory.bin`（首次刷入）或 `sysupgrade.bin`（同主版本升级）
 3. U-Boot TFTP 模式下刷入 `factory.bin`（**首次刷机会替换整个 NAND，包括原厂 NROS**）
    - 按住 Reset 按钮上电，设备进入 TFTP 恢复模式
@@ -147,10 +202,17 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 
 ## 目录结构
 
-- `.github/workflows/` — CI 工作流（单文件自包含）
+- `.github/workflows/` — CI 工作流
+  - `immortalwrt-nradio-c8-660.yml` — 开源构建 (mt76 + mainline 6.x)
+  - `immortalwrt-nradio-c8-660-closed.yml` — 闭源构建 (mt_wifi + SDK 5.4)
 - `Scripts/` — 编译自定义脚本（主题、插件、系统设置）
-- `Config/` — 设备 Kconfig + 通用包配置
-- `patches/` — 设备树 (DTS) + filogic.mk 设备定义
+- `Config/` — 设备 Kconfig + 通用包配置 + 变体配置
+  - `GENERAL.txt` — 通用包配置（两种变体共享）
+  - `NRADIO-C8-660.txt` — 开源构建设备配置
+  - `NRADIO-C8-660-CLOSED.txt` — 闭源构建设备配置
+  - `OPEN.txt` — 开源构建标识
+  - `CLOSED.txt` — 闭源构建 MTK 专有包配置
+- `patches/` — 开源构建设备树 (DTS) + filogic.mk 设备定义
 
 ### 硬件参考
 
