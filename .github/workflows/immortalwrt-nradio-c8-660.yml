@@ -335,7 +335,7 @@ jobs:
       - name: Cleanup Old Releases
         run: |
           KEEP=3
-          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 -q 'sort_by(.[]; .publishedAt) | .[0:-'"$KEEP"'] | .[].tagName' 2>/dev/null)
+          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 -q 'sort_by(.[]; .publishedAt) | .[0:-'"$KEEP"'] | .[].tagName' 2>/dev/null) || true
           for TAG in $RELEASES; do
             echo "Deleting release and tag: $TAG"
             gh release delete "$TAG" --yes 2>/dev/null || true
