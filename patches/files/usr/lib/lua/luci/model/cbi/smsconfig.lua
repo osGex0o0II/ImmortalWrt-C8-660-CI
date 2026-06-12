@@ -30,16 +30,16 @@ local smsnum = string.sub (statusb, 23, 27)
 
 local smscount = string.match(smsnum, '%d+')
 
-m = Map("sms_tool", translate("Configuration sms-tool"),
-	translate("Configuration panel for sms_tool and gui application."))
+m = Map("sms_tool", "短信工具配置",
+	"短信工具和GUI应用程序的配置面板")
 
-s = m:section(NamedSection, 'general' , "sms_tool" , "" .. translate(""))
+s = m:section(NamedSection, 'general' , "sms_tool" , "" .. "")
 s.anonymous = true
-s:tab("sms", translate("SMS Settings"))
+s:tab("sms", "短信设置")
 
 this_tab = "sms"
 
-dev1 = s:taboption(this_tab, Value, "readport", translate("SMS Reading Port"))
+dev1 = s:taboption(this_tab, Value, "readport", "SMS读取端口")
 if try_devices1 then
 local node
 for node in try_devices1 do
@@ -47,30 +47,30 @@ dev1:value(node, node)
 end
 end
 
-mem = s:taboption(this_tab, ListValue, "storage", translate("Message storage area"), translate("Messages are stored in a specific location (for example, on the SIM card or modem memory), but other areas may also be available depending on the type of device."))
+mem = s:taboption(this_tab, ListValue, "storage", "消息存储区域", "消息存储在特定位置（例如SIM卡或模组内存），具体取决于设备类型。")
 mem.default = "SM"
-mem:value("SM", translate("SIM card"))
-mem:value("ME", translate("Modem memory"))
+mem:value("SM", "SIM卡")
+mem:value("ME", "模组内存")
 mem.rmempty = true
 
-local msm = s:taboption(this_tab, Flag, "mergesms", translate("Merge split messages"), translate("Checking this option will make it easier to read the messages, but it will cause a discrepancy in the number of messages shown and received."))
+local msm = s:taboption(this_tab, Flag, "mergesms", "合并分割消息", "启用此选项可更轻松阅读消息，但会导致显示和接收的消息数量不一致。")
 msm.rmempty = false
 
-msma = s:taboption(this_tab, ListValue, "algorithm", translate("Merge algorithm"), translate(""))
+msma = s:taboption(this_tab, ListValue, "algorithm", "合并算法", "")
 msma.default = "Simple"
-msma:value("Simple", translate("Simple (merge without sorting)"))
-msma:value("Advanced", translate("Advanced (merges with sorting)"))
+msma:value("Simple", "简单（不排序合并）")
+msma:value("Advanced", "高级（排序合并）")
 msma:depends("mergesms", "1")
 msma.rmempty = true
 
-msmd = s:taboption(this_tab, ListValue, "direction", translate("Direction of message merging"), translate(""))
+msmd = s:taboption(this_tab, ListValue, "direction", "消息合并方向", "")
 msmd.default = "Start"
-msmd:value("Start", translate("From beginning to end"))
-msmd:value("End", translate("From end to beginning"))
+msmd:value("Start", "从头到尾")
+msmd:value("End", "从尾到头")
 msmd:depends("algorithm", "Advanced")
 msmd.rmempty = true
 
-dev2 = s:taboption(this_tab, Value, "sendport", translate("SMS Sending Port"))
+dev2 = s:taboption(this_tab, Value, "sendport", "SMS发送端口")
 if try_devices2 then
 local node
 for node in try_devices2 do
@@ -78,15 +78,15 @@ dev2:value(node, node)
 end
 end
 
-local t = s:taboption(this_tab, Value, "pnumber", translate("Prefix Number"), translate("The phone number should be preceded by the country prefix (for Poland it is 48, without '+'). If the number is 5, 4 or 3 characters, it is treated as 'short' and should not be preceded by a country prefix."))
+local t = s:taboption(this_tab, Value, "pnumber", "前缀号码", "电话号码前需加国家前缀（中国为86，不加+）。若号码为5、4或3位，则视为短号，不加前缀。")
 t.rmempty = true
-t.default = 48
+t.default = 86
 
-local f = s:taboption(this_tab, Flag, "prefix", translate("Add Prefix to Phone Number"), translate("Automatically add prefix to the phone number field."))
+local f = s:taboption(this_tab, Flag, "prefix", "为电话号码添加前缀", "自动在电话号码字段中添加前缀。")
 f.rmempty = false
 
 
-local i = s:taboption(this_tab, Flag, "information", translate("Explanation of number and prefix"), translate("In the tab for sending SMSes, show an explanation of the prefix and the correct phone number."))
+local i = s:taboption(this_tab, Flag, "information", "号码和前缀说明", "在发送短信的标签页中显示前缀和正确电话号码的说明。")
 i.rmempty = false
 
 return m
