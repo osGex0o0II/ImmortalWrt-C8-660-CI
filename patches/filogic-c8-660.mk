@@ -14,7 +14,16 @@ define Device/nradio_wt9103
 	kmod-usb-net-qmi-wwan kmod-usb-wdm kmod-usb-net-cdc-ncm \
 	kmod-usb-net-huawei-cdc-ncm kmod-usb3 automount \
 	uqmi luci-proto-qmi sms-tool \
-	comgt comgt-ncm chat usb-modeswitch
+	comgt comgt-ncm chat usb-modeswitch \
+	kmod-wireguard wireguard-tools luci-proto-wireguard \
+	ttyd luci-app-ttyd \
+	nlbwmon luci-app-nlbwmon \
+	miniupnpd luci-app-upnp \
+	socat luci-app-socat \
+	etherwake luci-app-wol \
+	luci-proto-3g \
+	tcpdump ethtool \
+	nano unzip wget-ssl
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048
