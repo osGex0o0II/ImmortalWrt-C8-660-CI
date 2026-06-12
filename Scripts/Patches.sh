@@ -103,4 +103,11 @@ INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_interfaces.snippet" "nradio,wt9
 # 注入 MAC 地址分配（第 2 个 esac — mediatek_setup_macs）
 INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2
 
+# 修复覆盖层脚本可执行权限
+LOG "Fixing executable permissions for overlay files"
+find "$MODEM_DST" -type f \( -name "*.sh" -o -name "sendat" -o -name "modeminit" -o -name "moimei" -o -name "mopdu" \) 2>/dev/null | while read f; do
+	chmod +x "$f"
+	LOG "+x $f"
+done
+
 LOG "Done"
