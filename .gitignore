@@ -2,6 +2,7 @@ Config/PRIVATE.txt
 Scripts/PRIVATE.sh
 *.swp
 *~
+*.bak
 *.log
 *.zip
 *.ipk

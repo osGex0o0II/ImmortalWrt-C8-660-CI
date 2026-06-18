@@ -197,6 +197,51 @@ jobs:
             $GITHUB_WORKSPACE/Scripts/Handles.sh
           } 2>&1 | tee /tmp/packages.log
 
+      - name: Disable Incompatible WARP Dependency
+        run: |
+          cd ./wrt/
+
+          MT_WIFI_MAKEFILE="./package/mtk/drivers/mt_wifi/Makefile"
+          if [ ! -f "$MT_WIFI_MAKEFILE" ]; then
+            echo "::error::mt_wifi Makefile not found: $MT_WIFI_MAKEFILE"
+            exit 1
+          fi
+
+          # Upstream openwrt-21.02 currently forces kmod-warp from kmod-mt_wifi.
+          # WARP 20250408 does not compile for this MT7981/kernel-5.4 baseline,
+          # so keep mt_wifi but remove the WARP/HNAT dependency and proxy module.
+          awk '
+            $0 == "PKG_BUILD_DEPENDS:=warp" { next }
+            $0 == "  DEPENDS:=+wifi-dats +kmod-conninfra +kmod-mediatek_hnat +kmod-warp" {
+              print "  DEPENDS:=+wifi-dats +kmod-conninfra"
+              next
+            }
+            $0 == "  FILES:=$(PKG_BUILD_DIR)/mt_wifi_ap/mt_wifi.ko \\" {
+              print "  FILES:=$(PKG_BUILD_DIR)/mt_wifi_ap/mt_wifi.ko"
+              skip_warp_proxy = 1
+              next
+            }
+            skip_warp_proxy && $0 ~ /mtk_warp_proxy\.ko$/ {
+              skip_warp_proxy = 0
+              next
+            }
+            $0 == "  AUTOLOAD:=$(call AutoProbe,mt_wifi mtk_warp_proxy)" {
+              print "  AUTOLOAD:=$(call AutoProbe,mt_wifi)"
+              next
+            }
+            { print }
+          ' "$MT_WIFI_MAKEFILE" > "$MT_WIFI_MAKEFILE.tmp"
+          mv "$MT_WIFI_MAKEFILE.tmp" "$MT_WIFI_MAKEFILE"
+
+          if grep -Eq 'PKG_BUILD_DEPENDS:=warp|\+kmod-warp|\+kmod-mediatek_hnat|mtk_warp_proxy' "$MT_WIFI_MAKEFILE"; then
+            echo "::error::Failed to remove WARP dependency from mt_wifi Makefile"
+            grep -nE 'PKG_BUILD_DEPENDS|DEPENDS:=|FILES:=|AUTOLOAD|kmod-warp|kmod-mediatek_hnat|mtk_warp_proxy' "$MT_WIFI_MAKEFILE" || true
+            exit 1
+          fi
+
+          echo "=== mt_wifi Makefile after disabling WARP dependency ==="
+          grep -nE 'DEPENDS:=|FILES:=|AUTOLOAD' "$MT_WIFI_MAKEFILE"
+
       - name: Custom Settings
         run: |
           cd ./wrt/
@@ -240,6 +285,15 @@ jobs:
             echo "Applying private configurations from PRIVATE.txt..."
             cat $GITHUB_WORKSPACE/Config/PRIVATE.txt >> ./.config
           fi
+
+          # Keep closed-source WiFi, but force-disable the incompatible WARP/HNAT path.
+          ./scripts/config --disable PACKAGE_kmod-warp
+          ./scripts/config --disable PACKAGE_kmod-mediatek_hnat
+          ./scripts/config --disable PACKAGE_luci-app-turboacc-mtk
+          ./scripts/config --disable PACKAGE_luci-i18n-turboacc-mtk-zh-cn
+          ./scripts/config --disable MTK_FAST_NAT_SUPPORT
+          ./scripts/config --disable MTK_WHNAT_SUPPORT
+          ./scripts/config --disable MTK_WARP_V2
 
           # 网络栈 buffer 优化
           mkdir -p ./package/base-files/files/etc/sysctl.d
@@ -357,6 +411,7 @@ jobs:
             ./wrt/.config
           retention-days: 3
           if-no-files-found: warn
+          include-hidden-files: true
 
       - name: Machine Information
         if: failure()
