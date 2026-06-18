@@ -243,14 +243,14 @@ jobs:
           # 网络栈 buffer 优化
           mkdir -p ./package/base-files/files/etc/sysctl.d
           cat > ./package/base-files/files/etc/sysctl.d/90-wifi-tune.conf << 'SYSCTL'
-# mt_wifi 网络栈优化
-net.core.rmem_default=262144
-net.core.wmem_default=262144
-net.core.rmem_max=4194304
-net.core.wmem_max=4194304
-net.core.netdev_budget=600
-net.core.netdev_budget_usecs=8000
-SYSCTL
+          # mt_wifi 网络栈优化
+          net.core.rmem_default=262144
+          net.core.wmem_default=262144
+          net.core.rmem_max=4194304
+          net.core.wmem_max=4194304
+          net.core.netdev_budget=600
+          net.core.netdev_budget_usecs=8000
+          SYSCTL
           echo "Network stack tuning applied"
 
           # 防火墙流卸载
@@ -263,20 +263,20 @@ SYSCTL
           # BBR + sysctl 优化
           cat >> ./package/base-files/files/etc/sysctl.d/90-wifi-tune.conf << 'BBR'
 
-# BBR TCP 拥塞控制
-net.ipv4.tcp_congestion_control=bbr
-net.core.default_qdisc=fq
+          # BBR TCP 拥塞控制
+          net.ipv4.tcp_congestion_control=bbr
+          net.core.default_qdisc=fq
 
-# TCP 快速打开
-net.ipv4.tcp_fastopen=3
+          # TCP 快速打开
+          net.ipv4.tcp_fastopen=3
 
-# 连接跟踪优化
-net.netfilter.nf_conntrack_max=65536
-net.netfilter.nf_conntrack_buckets=8192
+          # 连接跟踪优化
+          net.netfilter.nf_conntrack_max=65536
+          net.netfilter.nf_conntrack_buckets=8192
 
-# IRQ 均衡辅助
-net.core.rps_sock_flow_entries=32768
-BBR
+          # IRQ 均衡辅助
+          net.core.rps_sock_flow_entries=32768
+          BBR
           echo "BBR + sysctl optimizations applied"
 
           echo "=== .config before defconfig ==="
