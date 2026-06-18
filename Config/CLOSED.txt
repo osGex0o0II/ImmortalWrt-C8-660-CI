@@ -3,7 +3,7 @@
 # 克隆 V12 系统配置
 # ==========================================
 # WiFi 驱动: mt_wifi (MediaTek 专有 v7.6.7.3, 由 hanwckf 仓库决定)
-# WARP 驱动: 20231229-5f71ec (sdk 7.6.7.x)
+# WARP 驱动: 暂停启用，当前上游 21.02 HEAD 的 WARP 与内核/寄存器头不匹配
 # 内核: 5.4 (SDK)
 # 源码: hanwckf/immortalwrt-mt798x (openwrt-21.02)
 # 设备支持: 已内置 (mt7981.mk + mt7981-nradio-wt9103-512m.dts)
@@ -17,10 +17,13 @@ CONFIG_PACKAGE_luci-i18n-mtwifi-cfg-zh-cn=y
 CONFIG_PACKAGE_wifi-dats=y
 
 # --- MTK 硬件加速 ---
-CONFIG_PACKAGE_kmod-warp=y
-CONFIG_PACKAGE_kmod-mediatek_hnat=y
-CONFIG_PACKAGE_luci-app-turboacc-mtk=y
-CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y
+# NOTE: 先关闭 WARP/TurboACC，建立可出包的 closed 21.02 基线。
+# 原 V12 使用 kmod-warp 20221209-3e6ae1 + kernel 5.4.255；当前上游
+# openwrt-21.02 HEAD 已漂移到 kernel 5.4.284，WARP reg_v1 编译失败。
+# CONFIG_PACKAGE_kmod-warp=y
+# CONFIG_PACKAGE_kmod-mediatek_hnat=y
+# CONFIG_PACKAGE_luci-app-turboacc-mtk=y
+# CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y
 
 # --- MTK 系统工具 ---
 CONFIG_PACKAGE_mtk-smp=y

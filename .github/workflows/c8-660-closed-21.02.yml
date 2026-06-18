@@ -187,6 +187,7 @@ jobs:
 
       - name: Custom Packages
         run: |
+          set -o pipefail
           trap 'echo "::error::Failed at line $LINENO with exit $?" >&2' ERR
 
           cd ./wrt/package/ || { echo "::error::cd ./wrt/package/ failed" >&2; exit 1; }

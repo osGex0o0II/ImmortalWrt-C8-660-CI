@@ -10,9 +10,11 @@ AURORA_DIR=$(find . -maxdepth 1 -type d -iname "*luci-app-aurora-config*" 2>/dev
 if [ -n "$AURORA_DIR" ]; then
 	echo " " && cd "$AURORA_DIR/"
 
-	TEMPLATE_FILES=$(find ./root/usr/share/aurora/ -type f -name "*.template" 2>/dev/null || true)
-	if [ -n "$TEMPLATE_FILES" ]; then
-		sed -i "s/nav_submenu_type '.*'/nav_submenu_type 'boxed-dropdown'/g" "$TEMPLATE_FILES"
+	if [ -d ./root/usr/share/aurora/ ]; then
+		find ./root/usr/share/aurora/ -type f -name "*.template" |
+			while IFS= read -r template_file; do
+				sed -i "s/nav_submenu_type '.*'/nav_submenu_type 'boxed-dropdown'/g" "$template_file"
+			done
 	fi
 
 	cd "$PKG_PATH" && echo "theme-aurora has been fixed!"
