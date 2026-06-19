@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
+# Archived: this 24.10 closed-driver workflow is kept for reference only.
+# The maintained closed-driver line is c8-660-closed-21.02.yml because it is
+# closer to the original V12 / SDK 5.4 baseline and has fewer unknowns.
 # ImmortalWrt 固件编译 — NRadio C8-660 (MT7981) 闭源驱动版 (24.10)
 name: C8-660 Closed 24.10 (mt_wifi 6.6)
 
@@ -242,8 +245,8 @@ jobs:
           cd ./wrt/
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
 
-          # 24.10 闭源构建: NRADIO-C8-660-CLOSED.txt + CLOSED-24.10.txt + GENERAL-24.10.txt
-          cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/CLOSED-24.10.txt $GITHUB_WORKSPACE/Config/GENERAL-24.10.txt >> .config
+          # Archived 24.10 closed build: keep variant-specific configs in archive/closed-24.10.
+          cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/archive/closed-24.10/CLOSED-24.10.txt $GITHUB_WORKSPACE/archive/closed-24.10/GENERAL-24.10.txt >> .config
 
           # 修改默认 IP/主机名
           CFG_FILE="./package/base-files/files/bin/config_generate"

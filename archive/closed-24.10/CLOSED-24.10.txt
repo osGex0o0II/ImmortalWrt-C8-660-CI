@@ -1,6 +1,8 @@
 # ==========================================
 # 闭源构建 (Closed-Source Variant) - 24.10
 # ==========================================
+# Archived: 24.10 closed-driver config is retained for reference only.
+# Active closed-driver work should use Config/CLOSED.txt (21.02 / SDK 5.4).
 # WiFi 驱动: mt_wifi (MediaTek 专有)
 # 内核: 6.6 (mainline)
 # 源码: padavanonly/immortalwrt-mt798x-24.10 (openwrt-24.10-6.6)
