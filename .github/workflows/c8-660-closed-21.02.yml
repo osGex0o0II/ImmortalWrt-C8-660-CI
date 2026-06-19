@@ -289,6 +289,7 @@ jobs:
           # Keep closed-source WiFi, but force-disable the incompatible WARP/HNAT path.
           # This tree uses scripts/config as a Kconfig build directory, not a helper.
           for SYM in \
+            CONFIG_MTK_FIRST_IF_NONE \
             CONFIG_PACKAGE_kmod-warp \
             CONFIG_PACKAGE_kmod-mediatek_hnat \
             CONFIG_PACKAGE_luci-app-turboacc-mtk \
@@ -300,6 +301,15 @@ jobs:
             sed -i "/^${SYM}=.*$/d; /^# ${SYM} is not set$/d" ./.config
           done
           cat >> ./.config << 'EOF'
+          CONFIG_MTK_MT_WIFI=m
+          CONFIG_MTK_FIRST_IF_MT7981=y
+          # CONFIG_MTK_FIRST_IF_NONE is not set
+          CONFIG_MTK_SECOND_IF_NONE=y
+          CONFIG_MTK_THIRD_IF_NONE=y
+          CONFIG_MTK_WIFI_MODE_AP=m
+          CONFIG_MTK_MT_AP_SUPPORT=m
+          CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673=y
+          CONFIG_MTK_MT_WIFI_MT7981_20240823=y
           # CONFIG_PACKAGE_kmod-warp is not set
           # CONFIG_PACKAGE_kmod-mediatek_hnat is not set
           # CONFIG_PACKAGE_luci-app-turboacc-mtk is not set
@@ -359,6 +369,8 @@ jobs:
 
           echo "=== .config after defconfig ==="
           grep '^CONFIG_TARGET' .config || echo "No CONFIG_TARGET lines after defconfig"
+          echo "=== MTK WiFi config after defconfig ==="
+          grep -E '^(CONFIG_MTK_MT_WIFI|CONFIG_MTK_FIRST_IF_|CONFIG_MTK_CHIP_MT7981|CONFIG_MTK_WIFI_MODE_AP|CONFIG_MTK_MT_AP_SUPPORT|CONFIG_MTK_MT_WIFI_DRIVER_VERSION|CONFIG_MTK_MT_WIFI_MT7981)' .config || true
 
           SELECTED_DEVICE=$(grep -oP '^CONFIG_TARGET_DEVICE_[\w]+_DEVICE_\K[\w-]+(?=\=y)' .config | head -1)
           echo "Selected device: '$SELECTED_DEVICE'"
@@ -367,6 +379,24 @@ jobs:
             exit 1
           fi
           echo "OK: Device nradio_wt9103_512m selected correctly"
+
+          if ! grep -q '^CONFIG_MTK_FIRST_IF_MT7981=y' .config; then
+            echo "::error::MTK WiFi first interface is not MT7981"
+            exit 1
+          fi
+          if grep -q '^CONFIG_MTK_FIRST_IF_NONE=y' .config; then
+            echo "::error::MTK WiFi first interface fell back to NONE"
+            exit 1
+          fi
+          if ! grep -Eq '^CONFIG_MTK_MT_WIFI=(m|y)' .config; then
+            echo "::error::MTK mt_wifi core is not enabled"
+            exit 1
+          fi
+          if ! grep -Eq '^CONFIG_MTK_MT_AP_SUPPORT=(m|y)' .config; then
+            echo "::error::MTK mt_wifi AP mode is not enabled"
+            exit 1
+          fi
+          echo "OK: MTK mt_wifi configured for MT7981"
 
       - name: Download Packages
         run: |
