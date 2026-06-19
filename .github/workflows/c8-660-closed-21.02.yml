@@ -287,13 +287,27 @@ jobs:
           fi
 
           # Keep closed-source WiFi, but force-disable the incompatible WARP/HNAT path.
-          ./scripts/config --disable PACKAGE_kmod-warp
-          ./scripts/config --disable PACKAGE_kmod-mediatek_hnat
-          ./scripts/config --disable PACKAGE_luci-app-turboacc-mtk
-          ./scripts/config --disable PACKAGE_luci-i18n-turboacc-mtk-zh-cn
-          ./scripts/config --disable MTK_FAST_NAT_SUPPORT
-          ./scripts/config --disable MTK_WHNAT_SUPPORT
-          ./scripts/config --disable MTK_WARP_V2
+          # This tree uses scripts/config as a Kconfig build directory, not a helper.
+          for SYM in \
+            CONFIG_PACKAGE_kmod-warp \
+            CONFIG_PACKAGE_kmod-mediatek_hnat \
+            CONFIG_PACKAGE_luci-app-turboacc-mtk \
+            CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn \
+            CONFIG_MTK_FAST_NAT_SUPPORT \
+            CONFIG_MTK_WHNAT_SUPPORT \
+            CONFIG_MTK_WARP_V2
+          do
+            sed -i "/^${SYM}=.*$/d; /^# ${SYM} is not set$/d" ./.config
+          done
+          cat >> ./.config << 'EOF'
+          # CONFIG_PACKAGE_kmod-warp is not set
+          # CONFIG_PACKAGE_kmod-mediatek_hnat is not set
+          # CONFIG_PACKAGE_luci-app-turboacc-mtk is not set
+          # CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn is not set
+          # CONFIG_MTK_FAST_NAT_SUPPORT is not set
+          # CONFIG_MTK_WHNAT_SUPPORT is not set
+          # CONFIG_MTK_WARP_V2 is not set
+          EOF
 
           # 网络栈 buffer 优化
           mkdir -p ./package/base-files/files/etc/sysctl.d
@@ -524,8 +538,9 @@ jobs:
             ### V12 兼容性
 
             本版本克隆了 V12 系统配置，包含以下 V12 特有组件：
-            - mt_wifi 专有驱动 (v7.6.7.3) + WARP/HNAT 硬件加速
-            - MTK 专有工具: mtwifi-cfg, turboacc-mtk, eqos-mtk
+            - mt_wifi 专有驱动 (v7.6.7.3)
+            - MTK 专有工具: mtwifi-cfg, eqos-mtk
+            - WARP/HNAT/TurboACC 暂停启用，用于避开当前 21.02 HEAD 的 WARP 编译不兼容
             - V12 插件: ledtrig-rssi/switch/usbport, sms-tool
             - V12 系统: autocore-arm, mhz, sendat
             - shortcut-fe 快速转发 + BBR TCP 优化
@@ -536,4 +551,6 @@ jobs:
         if: always()
         run: |
           cd ./wrt/
-          make clean -j$(nproc)
+          rm -rf build_dir tmp logs bin 2>/dev/null || true
+          rm -rf staging_dir/target* 2>/dev/null || true
+          rm -f .config.old 2>/dev/null || true
