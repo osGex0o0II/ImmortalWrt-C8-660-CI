@@ -297,7 +297,17 @@ jobs:
             CONFIG_MTK_FAST_NAT_SUPPORT \
             CONFIG_MTK_WHNAT_SUPPORT \
             CONFIG_MTK_WARP_V2 \
-            CONFIG_MTK_WPA3_SUPPORT
+            CONFIG_MTK_WPA3_SUPPORT \
+            CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7661 \
+            CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673 \
+            CONFIG_MTK_MT_WIFI_MT7981_DEFAULT_FIRMWARE \
+            CONFIG_MTK_MT_WIFI_MT7981_20230306 \
+            CONFIG_MTK_MT_WIFI_MT7981_20230330 \
+            CONFIG_MTK_MT_WIFI_MT7981_20230411 \
+            CONFIG_MTK_MT_WIFI_MT7981_20230717 \
+            CONFIG_MTK_MT_WIFI_MT7981_20231024 \
+            CONFIG_MTK_MT_WIFI_MT7981_20240823 \
+            CONFIG_MTK_FW_NEW_API_PATCH
           do
             sed -i "/^${SYM}=.*$/d; /^# ${SYM} is not set$/d" ./.config
           done
@@ -309,8 +319,11 @@ jobs:
           CONFIG_MTK_THIRD_IF_NONE=y
           CONFIG_MTK_WIFI_MODE_AP=m
           CONFIG_MTK_MT_AP_SUPPORT=m
-          CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673=y
-          CONFIG_MTK_MT_WIFI_MT7981_20240823=y
+          CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7661=y
+          # CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673 is not set
+          CONFIG_MTK_MT_WIFI_MT7981_DEFAULT_FIRMWARE=y
+          # CONFIG_MTK_MT_WIFI_MT7981_20240823 is not set
+          # CONFIG_MTK_FW_NEW_API_PATCH is not set
           CONFIG_MTK_DOT11K_RRM_SUPPORT=y
           # CONFIG_MTK_WPA3_SUPPORT is not set
           # CONFIG_PACKAGE_kmod-warp is not set
@@ -397,6 +410,22 @@ jobs:
           fi
           if ! grep -Eq '^CONFIG_MTK_MT_AP_SUPPORT=(m|y)' .config; then
             echo "::error::MTK mt_wifi AP mode is not enabled"
+            exit 1
+          fi
+          if ! grep -q '^CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7661=y' .config; then
+            echo "::error::MTK mt_wifi driver is not pinned to 7.6.6.1"
+            exit 1
+          fi
+          if grep -q '^CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673=y' .config; then
+            echo "::error::MTK mt_wifi driver fell back to 7.6.7.3"
+            exit 1
+          fi
+          if ! grep -q '^CONFIG_MTK_MT_WIFI_MT7981_DEFAULT_FIRMWARE=y' .config; then
+            echo "::error::MTK mt_wifi is not using MT7981 default firmware"
+            exit 1
+          fi
+          if grep -q '^CONFIG_MTK_MT_WIFI_MT7981_20240823=y' .config; then
+            echo "::error::MTK mt_wifi firmware fell back to 20240823"
             exit 1
           fi
           if ! grep -q '^CONFIG_MTK_DOT11K_RRM_SUPPORT=y' .config; then
@@ -565,7 +594,7 @@ jobs:
             | 源码 | ${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) |
             | 提交 | ${{env.WRT_HASH}} |
             | 内核 | ${{env.WRT_KVER}} |
-            | WiFi 驱动 | mt_wifi (MediaTek 专有 v7.6.7.3) |
+            | WiFi 驱动 | mt_wifi (MediaTek 专有 v7.6.6.1) |
             | 登录地址 | ${{env.WRT_IP}} |
             | 登录密码 | ${{env.WRT_PW_DISPLAY}} |
             | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
@@ -575,7 +604,7 @@ jobs:
             ### V12 兼容性
 
             本版本克隆了 V12 系统配置，包含以下 V12 特有组件：
-            - mt_wifi 专有驱动 (v7.6.7.3)
+            - mt_wifi 专有驱动 (v7.6.6.1)
             - MTK 专有工具: mtwifi-cfg, eqos-mtk
             - WARP/HNAT/TurboACC 暂停启用，用于避开当前 21.02 HEAD 的 WARP 编译不兼容
             - V12 插件: ledtrig-rssi/switch/usbport, sms-tool

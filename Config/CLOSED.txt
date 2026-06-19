@@ -2,7 +2,7 @@
 # 闭源构建 (Closed-Source Variant)
 # 克隆 V12 系统配置
 # ==========================================
-# WiFi 驱动: mt_wifi (MediaTek 专有 v7.6.7.3, 由 hanwckf 仓库决定)
+# WiFi 驱动: mt_wifi (MediaTek 专有 v7.6.6.1, 对齐原 V12 基线)
 # WARP 驱动: 暂停启用，当前上游 21.02 HEAD 的 WARP 与内核/寄存器头不匹配
 # 内核: 5.4 (SDK)
 # 源码: hanwckf/immortalwrt-mt798x (openwrt-21.02)
@@ -22,12 +22,13 @@ CONFIG_MTK_SECOND_IF_NONE=y
 CONFIG_MTK_THIRD_IF_NONE=y
 CONFIG_MTK_WIFI_MODE_AP=m
 CONFIG_MTK_MT_AP_SUPPORT=m
-CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673=y
-CONFIG_MTK_MT_WIFI_MT7981_20240823=y
+CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7661=y
+# CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673 is not set
+CONFIG_MTK_MT_WIFI_MT7981_DEFAULT_FIRMWARE=y
+# CONFIG_MTK_MT_WIFI_MT7981_20240823 is not set
 CONFIG_MTK_DOT11K_RRM_SUPPORT=y
-# NOTE: mt_wifi v7.6.7.3 currently fails to build when WPA3/SAE is enabled
-# without the matching hostapd/cfg80211 feature set. Keep WPA3 off until the
-# closed driver baseline can build successfully.
+# NOTE: Keep WPA3 off for the first closed-driver baseline. The current
+# 7.6.7.3 path fails in SAE code; 7.6.6.1 matches the original V12 driver.
 # CONFIG_MTK_WPA3_SUPPORT is not set
 
 # --- MTK 硬件加速 ---
