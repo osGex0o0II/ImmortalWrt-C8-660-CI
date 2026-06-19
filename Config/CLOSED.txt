@@ -25,7 +25,10 @@ CONFIG_MTK_MT_AP_SUPPORT=m
 CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673=y
 CONFIG_MTK_MT_WIFI_MT7981_20240823=y
 CONFIG_MTK_DOT11K_RRM_SUPPORT=y
-CONFIG_MTK_WPA3_SUPPORT=y
+# NOTE: mt_wifi v7.6.7.3 currently fails to build when WPA3/SAE is enabled
+# without the matching hostapd/cfg80211 feature set. Keep WPA3 off until the
+# closed driver baseline can build successfully.
+# CONFIG_MTK_WPA3_SUPPORT is not set
 
 # --- MTK 硬件加速 ---
 # NOTE: 先关闭 WARP/HNAT/TurboACC，建立可出包的 closed 21.02 基线。

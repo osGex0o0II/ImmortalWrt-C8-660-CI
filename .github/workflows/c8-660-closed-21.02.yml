@@ -296,7 +296,8 @@ jobs:
             CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn \
             CONFIG_MTK_FAST_NAT_SUPPORT \
             CONFIG_MTK_WHNAT_SUPPORT \
-            CONFIG_MTK_WARP_V2
+            CONFIG_MTK_WARP_V2 \
+            CONFIG_MTK_WPA3_SUPPORT
           do
             sed -i "/^${SYM}=.*$/d; /^# ${SYM} is not set$/d" ./.config
           done
@@ -311,7 +312,7 @@ jobs:
           CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673=y
           CONFIG_MTK_MT_WIFI_MT7981_20240823=y
           CONFIG_MTK_DOT11K_RRM_SUPPORT=y
-          CONFIG_MTK_WPA3_SUPPORT=y
+          # CONFIG_MTK_WPA3_SUPPORT is not set
           # CONFIG_PACKAGE_kmod-warp is not set
           # CONFIG_PACKAGE_kmod-mediatek_hnat is not set
           # CONFIG_PACKAGE_luci-app-turboacc-mtk is not set
@@ -372,7 +373,7 @@ jobs:
           echo "=== .config after defconfig ==="
           grep '^CONFIG_TARGET' .config || echo "No CONFIG_TARGET lines after defconfig"
           echo "=== MTK WiFi config after defconfig ==="
-          grep -E '^(CONFIG_MTK_MT_WIFI|CONFIG_MTK_FIRST_IF_|CONFIG_MTK_CHIP_MT7981|CONFIG_MTK_WIFI_MODE_AP|CONFIG_MTK_MT_AP_SUPPORT|CONFIG_MTK_MT_WIFI_DRIVER_VERSION|CONFIG_MTK_MT_WIFI_MT7981|CONFIG_MTK_DOT11K_RRM_SUPPORT|CONFIG_MTK_WPA3_SUPPORT)' .config || true
+          grep -E '^(CONFIG_MTK_MT_WIFI|CONFIG_MTK_FIRST_IF_|CONFIG_MTK_CHIP_MT7981|CONFIG_MTK_WIFI_MODE_AP|CONFIG_MTK_MT_AP_SUPPORT|CONFIG_MTK_MT_WIFI_DRIVER_VERSION|CONFIG_MTK_MT_WIFI_MT7981|CONFIG_MTK_DOT11K_RRM_SUPPORT|# CONFIG_MTK_WPA3_SUPPORT is not set)' .config || true
 
           SELECTED_DEVICE=$(grep -oP '^CONFIG_TARGET_DEVICE_[\w]+_DEVICE_\K[\w-]+(?=\=y)' .config | head -1)
           echo "Selected device: '$SELECTED_DEVICE'"
@@ -400,10 +401,6 @@ jobs:
           fi
           if ! grep -q '^CONFIG_MTK_DOT11K_RRM_SUPPORT=y' .config; then
             echo "::error::MTK 802.11k RRM support is not enabled"
-            exit 1
-          fi
-          if ! grep -q '^CONFIG_MTK_WPA3_SUPPORT=y' .config; then
-            echo "::error::MTK WPA3 support is not enabled"
             exit 1
           fi
           echo "OK: MTK mt_wifi configured for MT7981"
