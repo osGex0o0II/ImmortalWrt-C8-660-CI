@@ -74,7 +74,7 @@ fi
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
-# luci-theme and luci-app-theme-config already set in GENERAL.txt
+# luci-theme and luci-app-theme-config are set in OPEN.txt for the mt76 build.
 
 #引入私有扩展配置
 if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then
@@ -86,9 +86,11 @@ fi
 
 # WED 启用（硬件 WiFi offload，MT7981 + MT7915E 支持）
 MT76_DIR="./package/kernel/mt76/files/drivers/net/wireless/mediatek/mt76/mt7915e"
-if [ -d "$MT76_DIR" ]; then
+if [ "${ENABLE_WED:-true}" = "true" ] && [ -d "$MT76_DIR" ]; then
 	echo "options mt7915e wed_enable=Y" > "$MT76_DIR/mt7915e.conf"
 	echo "mt76 WED enabled (hardware offload)"
+elif [ "${ENABLE_WED:-true}" != "true" ]; then
+	echo "mt76 WED disabled by workflow input"
 else
 	echo "WARNING: $MT76_DIR not found — WED not enabled" >&2
 fi
@@ -108,10 +110,12 @@ echo "Network stack tuning applied"
 
 # === 启用防火墙流卸载 (Flow Offloading) ===
 FW_CONF="./package/network/config/firewall/files/firewall.config"
-if [ -f "$FW_CONF" ]; then
+if [ "${ENABLE_FLOW_OFFLOADING:-true}" = "true" ] && [ -f "$FW_CONF" ]; then
 	sed -i "s/option flow_offloading '0'/option flow_offloading '1'/g" "$FW_CONF"
 	sed -i "s/option flow_offloading_hw '0'/option flow_offloading_hw '1'/g" "$FW_CONF"
 	echo "Firewall flow offloading enabled"
+elif [ "${ENABLE_FLOW_OFFLOADING:-true}" != "true" ]; then
+	echo "Firewall flow offloading disabled by workflow input"
 else
 	echo "WARNING: $FW_CONF not found — flow offloading not set" >&2
 fi

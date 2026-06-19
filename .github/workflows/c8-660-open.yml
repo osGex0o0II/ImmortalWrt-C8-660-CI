@@ -6,6 +6,42 @@ name: C8-660 Open (mt76)
 
 on:
   workflow_dispatch:
+    inputs:
+      wrt_branch:
+        description: "ImmortalWrt branch to build"
+        required: true
+        default: "master"
+        type: string
+      wrt_ref:
+        description: "Optional ImmortalWrt commit, tag, or ref override"
+        required: false
+        default: ""
+        type: string
+      publish_release:
+        description: "Publish firmware to GitHub Releases"
+        required: true
+        default: true
+        type: boolean
+      debug_dump:
+        description: "Print target DUMP diagnostics"
+        required: true
+        default: false
+        type: boolean
+      enable_wed:
+        description: "Enable mt76 WED hardware offload"
+        required: true
+        default: true
+        type: boolean
+      enable_flow_offloading:
+        description: "Enable firewall flow offloading"
+        required: true
+        default: true
+        type: boolean
+      keep_releases:
+        description: "Number of recent releases to keep"
+        required: true
+        default: "3"
+        type: string
 
 permissions:
   contents: read
@@ -20,7 +56,10 @@ env:
   WRT_IP: 192.168.1.1
   WRT_PW: ${{ secrets.WRT_PW || '' }}
   WRT_REPO: https://github.com/immortalwrt/immortalwrt
-  WRT_BRANCH: master
+  WRT_BRANCH: ${{ inputs.wrt_branch || 'master' }}
+  WRT_REF: ${{ inputs.wrt_ref || '' }}
+  ENABLE_WED: ${{ inputs.enable_wed }}
+  ENABLE_FLOW_OFFLOADING: ${{ inputs.enable_flow_offloading }}
 
 jobs:
   build:
@@ -71,9 +110,18 @@ jobs:
 
       - name: Clone Code
         run: |
-          git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
+          git clone --depth=1 --single-branch --branch "$WRT_BRANCH" "$WRT_REPO" ./wrt/
 
-          cd ./wrt/ && echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
+          cd ./wrt/
+          if [ -n "$WRT_REF" ]; then
+            if git fetch --depth=1 origin "$WRT_REF"; then
+              git checkout --detach FETCH_HEAD
+            else
+              git fetch --unshallow --tags origin "$WRT_BRANCH" || git fetch --tags origin "$WRT_BRANCH"
+              git checkout --detach "$WRT_REF"
+            fi
+          fi
+          echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
 
       - name: Apply Patches
         run: |
@@ -186,6 +234,7 @@ jobs:
           } 2>&1 | tee /tmp/packages.log
 
       - name: Debug DUMP Output
+        if: ${{ inputs.debug_dump }}
         run: |
           cd ./wrt/
           echo "=== DUMP output for nradio (image dir) ==="
@@ -206,7 +255,10 @@ jobs:
           cd ./wrt/
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
 
-          cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
+          cat \
+            $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt \
+            $GITHUB_WORKSPACE/Config/OPEN.txt \
+            $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
@@ -317,15 +369,25 @@ jobs:
 
       - name: Package Firmware
         run: |
-          cd ./wrt/ && mkdir ./upload/
+          cd ./wrt/ && mkdir -p ./upload/
 
-          echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
-          echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
+          KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -1)
+          LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')
+          echo "WRT_KVER=${KVER:-unknown}" >> $GITHUB_ENV
+          echo "WRT_LIST=${LIST:-none}" >> $GITHUB_ENV
 
           find ./bin/targets/ -iregex ".*\(buildinfo\|json\|packages\)$" -exec rm -rf {} +
 
           # 保留关键镜像，统一命名
-          for FILE in $(find ./bin/targets/ -type f -iname "*factory*" -o -iname "*sysupgrade*" -o -iname "*initramfs*" -o -iname "*bl2*" -o -iname "*manifest*" -o -iname "*sha256sums*" -o -iname "*.dtb" 2>/dev/null); do
+          find ./bin/targets/ -type f \( \
+            -iname "*factory*" -o \
+            -iname "*sysupgrade*" -o \
+            -iname "*initramfs*" -o \
+            -iname "*bl2*" -o \
+            -iname "*manifest*" -o \
+            -iname "*sha256sums*" -o \
+            -iname "*.dtb" \
+          \) -print | while IFS= read -r FILE; do
             BASENAME=$(basename "$FILE")
             cp -f "$FILE" "./upload/$BASENAME"
           done
@@ -347,9 +409,34 @@ jobs:
             mv -f "$FILE" "./upload/$SHORT"
           done
 
+          REQUIRED_FILES="
+          ./upload/immortalwrt-c8-660-factory.bin
+          ./upload/immortalwrt-c8-660-sysupgrade.bin
+          ./upload/immortalwrt-c8-660-initramfs.bin
+          ./upload/mt7981-bl2.bin
+          ./upload/sha256sums
+          "
+          for FILE in $REQUIRED_FILES; do
+            if [ ! -s "$FILE" ]; then
+              echo "::error::Required firmware artifact missing or empty: $FILE"
+              find ./upload/ -maxdepth 1 -type f -print | sort
+              exit 1
+            fi
+          done
+          if ! find ./upload/ -maxdepth 1 -type f -name "*.manifest" -size +0c | grep -q .; then
+            echo "::error::Required manifest artifact missing"
+            find ./upload/ -maxdepth 1 -type f -print | sort
+            exit 1
+          fi
+          find ./upload/ -maxdepth 1 -type f -print | sort
+
       - name: Cleanup Old Releases
+        if: ${{ inputs.publish_release }}
         run: |
-          KEEP=3
+          KEEP="${{ inputs.keep_releases }}"
+          case "$KEEP" in
+            ''|*[!0-9]*) KEEP=3 ;;
+          esac
           RELEASES=$(gh release list --json tagName,publishedAt --limit 100 -q 'sort_by(.[]; .publishedAt) | .[0:-'"$KEEP"'] | .[].tagName' 2>/dev/null) || true
           for TAG in $RELEASES; do
             echo "Deleting release and tag: $TAG"
@@ -359,6 +446,7 @@ jobs:
           echo "Cleanup done (kept last $KEEP releases)"
 
       - name: Prepare Release Info
+        if: ${{ inputs.publish_release }}
         run: |
           if [ -z "$WRT_PW" ]; then
             echo "WRT_PW_DISPLAY=（无）" >> $GITHUB_ENV
@@ -372,9 +460,11 @@ jobs:
           fi
 
       - name: Release Firmware
+        if: ${{ inputs.publish_release }}
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
           tag_name: immortalwrt-c8-660-${{env.WRT_DATE}}
+          fail_on_unmatched_files: true
           files: |
             ./wrt/upload/immortalwrt-c8-660-factory.bin
             ./wrt/upload/immortalwrt-c8-660-sysupgrade.bin
@@ -411,6 +501,15 @@ jobs:
             **注意：** 登录 IP 已从原厂 192.168.66.1 变更为 192.168.1.1。5G 模组（RM520N-CN）首次启动约需 60 秒完成初始化。
 
             > ⚠️ 本项目编译产物使用 mainline 内核（6.x），与 NRadio SDK 内核（5.4）引导链不兼容。刷机前请务必通过 U-Boot TFTP 模式备份 BL2 和 FIP 分区。刷机风险自担。
+
+      - name: Upload Firmware Artifact
+        if: ${{ inputs.publish_release == false }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: firmware-${{env.WRT_CONFIG}}-${{env.WRT_DATE}}
+          path: ./wrt/upload/
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Clean Build Workspace
         if: always()

@@ -11,6 +11,28 @@ PATCHES_DIR="$GITHUB_WORKSPACE/patches"
 
 LOG() { echo "=== $* ==="; }
 
+REQUIRE_FILE() {
+	local FILE="$1"
+
+	if [ ! -f "$FILE" ]; then
+		LOG "ERROR: required file not found: $FILE"
+		return 1
+	fi
+}
+
+REQUIRE_PATTERN() {
+	local FILE="$1"
+	local PATTERN="$2"
+	local DESC="$3"
+
+	REQUIRE_FILE "$FILE"
+	if ! grep -Eq "$PATTERN" "$FILE"; then
+		LOG "ERROR: verification failed ($DESC): $FILE"
+		return 1
+	fi
+	LOG "VERIFIED: $DESC"
+}
+
 # 向 case 语句中注入 snippet（esac 之前）
 # $4 — occurrence（可选，默认 1）：注入到第 N 个 esac 之前
 INJECT_CASE() {
@@ -20,12 +42,12 @@ INJECT_CASE() {
 	local OCCURRENCE="${4:-1}"
 
 	if [ ! -f "$FILE" ]; then
-		LOG "SKIP (file not found): $FILE"
-		return 0
+		LOG "ERROR: file not found: $FILE"
+		return 1
 	fi
 	if [ ! -f "$SNIPPET" ]; then
-		LOG "SKIP (snippet not found): $SNIPPET"
-		return 0
+		LOG "ERROR: snippet not found: $SNIPPET"
+		return 1
 	fi
 	if grep -q "$MARKER" "$FILE"; then
 		LOG "ALREADY PATCHED ($MARKER): $FILE"
@@ -69,6 +91,7 @@ if [ -d "$PATCHES_DIR" ]; then
 		cp -vf "$DTS" "$WRT_DIR/target/linux/mediatek/dts/"
 	done
 fi
+REQUIRE_FILE "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts"
 
 # 安装 modem 管理文件（sendat + 脚本 + 配置 + 热插拔）
 MODEM_SRC="$PATCHES_DIR/files"
@@ -87,21 +110,26 @@ for MK in "$PATCHES_DIR"/*.mk; do
 	[ -f "$MK" ] || continue
 	grep -q "nradio_wt9103" "$WRT_DIR/target/linux/mediatek/image/filogic.mk" 2>/dev/null || cat "$MK" >> "$WRT_DIR/target/linux/mediatek/image/filogic.mk"
 done
+REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/image/filogic.mk" "define Device/nradio_wt9103" "C8-660 device definition"
 
 # 注入 LED 行为定义
 LED_FILE="$WRT_DIR/target/linux/mediatek/filogic/base-files/etc/board.d/01_leds"
 INJECT_CASE "$LED_FILE" "$PATCHES_DIR/01_leds.snippet" "nradio,wt9103"
+REQUIRE_PATTERN "$LED_FILE" "ucidef_set_led_netdev \"wifi\" \"WIFI\"" "C8-660 LED rules"
 
 # 注入 WiFi MAC 地址修复
 MAC_FILE="$WRT_DIR/target/linux/mediatek/filogic/base-files/etc/hotplug.d/ieee80211/11_fix_wifi_mac"
 INJECT_CASE "$MAC_FILE" "$PATCHES_DIR/11_fix_wifi_mac.snippet" "nradio,wt9103"
+REQUIRE_PATTERN "$MAC_FILE" "macaddr_setbit_la" "C8-660 WiFi MAC fix"
 
 # 注入网络接口定义（第 1 个 esac — mediatek_setup_interfaces）
 NET_FILE="$WRT_DIR/target/linux/mediatek/filogic/base-files/etc/board.d/02_network"
 INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_interfaces.snippet" "nradio,wt9103)" 1
+REQUIRE_PATTERN "$NET_FILE" "ucidef_set_interfaces_lan_wan \"lan1 lan2 lan3 lan4\" eth1" "C8-660 network interface mapping"
 
 # 注入 MAC 地址分配（第 2 个 esac — mediatek_setup_macs）
 INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2
+REQUIRE_PATTERN "$NET_FILE" "mtd_get_mac_ascii bdinfo \"fac_mac \"" "C8-660 network MAC mapping"
 
 # 修复覆盖层脚本可执行权限
 LOG "Fixing executable permissions for overlay files"
