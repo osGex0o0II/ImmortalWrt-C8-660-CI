@@ -85,14 +85,15 @@ fi
 # === mt76 WiFi 性能优化 ===
 
 # WED 启用（硬件 WiFi offload，MT7981 + MT7915E 支持）
-MT76_DIR="./package/kernel/mt76/files/drivers/net/wireless/mediatek/mt76/mt7915e"
-if [ "${ENABLE_WED:-true}" = "true" ] && [ -d "$MT76_DIR" ]; then
-	echo "options mt7915e wed_enable=Y" > "$MT76_DIR/mt7915e.conf"
-	echo "mt76 WED enabled (hardware offload)"
+MODULES_CONF="./package/base-files/files/etc/modules.conf"
+if [ "${ENABLE_WED:-true}" = "true" ]; then
+	mkdir -p "$(dirname "$MODULES_CONF")"
+	touch "$MODULES_CONF"
+	grep -q '^options mt7915e wed_enable=Y$' "$MODULES_CONF" || \
+		echo "options mt7915e wed_enable=Y" >> "$MODULES_CONF"
+	echo "mt76 WED enabled via /etc/modules.conf"
 elif [ "${ENABLE_WED:-true}" != "true" ]; then
 	echo "mt76 WED disabled by workflow input"
-else
-	echo "WARNING: $MT76_DIR not found — WED not enabled" >&2
 fi
 
 # 网络栈 buffer 优化
@@ -107,6 +108,17 @@ net.core.netdev_budget=600
 net.core.netdev_budget_usecs=8000
 SYSCTL
 echo "Network stack tuning applied"
+
+# === 启用 Packet Steering (RPS，多核软中断分摊) ===
+mkdir -p ./package/base-files/files/etc/uci-defaults
+cat > ./package/base-files/files/etc/uci-defaults/99-enable-packet-steering << 'PACKET_STEERING'
+#!/bin/sh
+uci -q set network.@globals[0].packet_steering='1'
+uci -q commit network
+exit 0
+PACKET_STEERING
+chmod +x ./package/base-files/files/etc/uci-defaults/99-enable-packet-steering
+echo "Packet steering enabled by default"
 
 # === 启用防火墙流卸载 (Flow Offloading) ===
 FW_CONF="./package/network/config/firewall/files/firewall.config"
