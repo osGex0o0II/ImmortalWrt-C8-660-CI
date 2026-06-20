@@ -483,7 +483,7 @@ jobs:
               echo "OK: $desc"
             else
               echo "::error::Missing $desc ($pattern)"
-              grep -Ei 'mt76|mt7915|mt7981|mac80211|cfg80211|qmi|sms|sendat|modem|luci|wireless|firewall|aurora|partexp|ttyd|upnp|wol|nlbw' "$ROOTFS_LIST" | tail -120 || true
+              grep -Ei 'mt76|mt7915|mt7981|mac80211|cfg80211|qmi|sms|sendat|modem|luci|wireless|firewall|aurora|partexp|ttyd|upnp|wol' "$ROOTFS_LIST" | tail -120 || true
               exit 1
             fi
           }
@@ -525,7 +525,6 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/network/wireless\.js' 'LuCI wireless page'
           require_rootfs 'www/luci-static/resources/view/network/interfaces\.js' 'LuCI interfaces page'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-firewall\.json' 'LuCI firewall app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-nlbwmon\.json' 'LuCI nlbwmon app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-package-manager\.json' 'LuCI package manager app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-partexp\.json' 'LuCI partition expansion app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-ttyd\.json' 'LuCI ttyd app'

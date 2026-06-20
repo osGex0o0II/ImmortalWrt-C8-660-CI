@@ -16,7 +16,6 @@ define Device/nradio_wt9103
 	uqmi luci-proto-qmi sms-tool \
 	comgt comgt-ncm chat usb-modeswitch \
 	ttyd luci-app-ttyd \
-	nlbwmon luci-app-nlbwmon \
 	miniupnpd luci-app-upnp \
 	socat \
 	etherwake luci-app-wol \
