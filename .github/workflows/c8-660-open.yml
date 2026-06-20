@@ -551,20 +551,6 @@ jobs:
           done
           echo "Cleanup done (kept last $KEEP releases)"
 
-      - name: Prepare Release Info
-        if: ${{ inputs.publish_release }}
-        run: |
-          if [ -z "$WRT_PW" ]; then
-            echo "WRT_PW_DISPLAY=（无）" >> $GITHUB_ENV
-          else
-            echo "WRT_PW_DISPLAY=$WRT_PW" >> $GITHUB_ENV
-          fi
-          if [ -z "$WRT_WORD" ]; then
-            echo "WRT_WORD_DISPLAY=（无密码，开放）" >> $GITHUB_ENV
-          else
-            echo "WRT_WORD_DISPLAY=$WRT_WORD" >> $GITHUB_ENV
-          fi
-
       - name: Release Firmware
         if: ${{ inputs.publish_release }}
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
@@ -580,48 +566,24 @@ jobs:
             ./wrt/upload/*.manifest
             ./wrt/upload/sha256sums
           body: |
-            ## NRadio C8-660 Open 固件
+            ## C8-660 Open 固件
 
-            ### 下载
+            **下载**
+            - 首次刷入：`immortalwrt-c8-660-factory.bin`
+            - 系统升级：`immortalwrt-c8-660-sysupgrade.bin`
+            - 校验文件：`sha256sums`
 
-            | 场景 | 下载文件 | 说明 |
-            |------|----------|------|
-            | 首次从原厂 NROS 刷入 | `immortalwrt-c8-660-factory.bin` | 通过 U-Boot TFTP 写入 |
-            | 已运行 OpenWrt/ImmortalWrt 后升级 | `immortalwrt-c8-660-sysupgrade.bin` | LuCI 备份/升级页面刷写 |
-            | 校验下载完整性 | `sha256sums` | 刷写前先核对 SHA256 |
+            **构建**
+            - 类型：Open / mt76 / mainline
+            - 时间：${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}} Asia/Shanghai
+            - 源码：${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) @ ${{env.WRT_HASH}}
+            - 内核：${{env.WRT_KVER}}
+            - 地址：${{env.WRT_IP}}
 
-            ```sh
-            sha256sum -c sha256sums
-            ```
-
-            ### 高级文件
-
-            | 文件 | 用途 |
-            |------|------|
-            | `immortalwrt-c8-660-initramfs.bin` | 内存启动、临时调试、救援验证 |
-            | `mt7981-bl2.bin` | 引导链/救砖参考，普通刷机不要使用 |
-            | `*.manifest` | 内置包列表，用于排错和复现构建 |
-
-            ### 构建信息
-
-            | 项目 | 值 |
-            |------|-----|
-            | 发布时间 | ${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}} Asia/Shanghai |
-            | 构建类型 | Open / mt76 / mainline |
-            | 源码 | ${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) |
-            | 提交 | ${{env.WRT_HASH}} |
-            | 内核 | ${{env.WRT_KVER}} |
-            | 登录地址 | ${{env.WRT_IP}} |
-            | 登录密码 | ${{env.WRT_PW_DISPLAY}} |
-            | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
-            | 插件 | ${{env.WRT_LIST}} |
-
-            ### 提示
-
-            - 首次刷入会替换原厂系统，请先备份 BL2 和 FIP 分区。
-            - 详细刷机流程、产物说明和风险说明见 [README](https://github.com/${{github.repository}}#使用流程)。
-            - 5G 模组（RM520N-CN）首次启动约需 60 秒完成初始化。
-            - 本固件使用 mainline 内核（6.x），与 NRadio SDK 5.4 构建线不通用。刷机风险自担。
+            **重要**
+            - 首次刷入会替换原厂系统，请先备份 BL2 / FIP。
+            - Open 与 Closed 固件不通用。
+            - 详细刷机说明见 [README](https://github.com/${{github.repository}}#使用流程)。
 
       - name: Upload Firmware Artifact
         if: ${{ inputs.publish_release == false }}
