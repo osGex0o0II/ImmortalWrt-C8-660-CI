@@ -1,3 +1,6 @@
+local http = require "luci.http"
+local safe = require "luci.c8modem.safe"
+
 module("luci.controller.modem", package.seeall)
 
 function index()
@@ -12,15 +15,21 @@ end
 function action_send_atcmd()
 	local rv ={}
 	local file
-	local p = luci.http.formvalue("p")
-	local set = luci.http.formvalue("set")
-	fixed = string.gsub(set, "\"", "~")
-	port= string.gsub(p, "\"", "~")
-	rv["at"] = fixed 
-	rv["port"] = port
+	local port = safe.at_port(http.formvalue("p"))
+	local atcmd = safe.at_command(http.formvalue("set"))
 
-	os.execute("/usr/share/modem/atcmd.sh \'" .. port .. "\' \'" .. fixed .. "\'")
-	result = "/tmp/result.at"
+	rv["at"] = atcmd or ""
+	rv["port"] = port or ""
+
+	if not port or not atcmd then
+		rv["result"] = "Invalid AT command or modem port"
+		http.prepare_content("application/json")
+		http.write_json(rv)
+		return
+	end
+
+	os.execute("/usr/share/modem/atcmd.sh " .. safe.shellquote(port) .. " " .. safe.shellquote(atcmd))
+	local result = "/tmp/result.at"
 	file = io.open(result, "r")
 	if file ~= nil then
 		rv["result"] = file:read("*all")
@@ -29,44 +38,53 @@ function action_send_atcmd()
 		rv["result"] = " "
 	end
 	os.execute("/usr/share/modem/delatcmd.sh")
-	luci.http.prepare_content("application/json")
-	luci.http.write_json(rv)
+	http.prepare_content("application/json")
+	http.write_json(rv)
 
 end
 
 function action_get_csq()
 	os.execute("/usr/share/modem/zinfo.sh")
 	local file
-	stat = "/tmp/cpe_cell.file"
+	local stat = "/tmp/cpe_cell.file"
 	file = io.open(stat, "r")
 	local rv ={}
-	rv["modem"] = file:read("*line")
-	rv["conntype"] = file:read("*line")
-	rv["firmware"] = file:read("*line")
-	rv["temper"] = file:read("*line")
-	rv["date"] = file:read("*line")
+	local function read_line()
+		if file then
+			return file:read("*line") or ""
+		end
+		return ""
+	end
+	rv["modem"] = read_line()
+	rv["conntype"] = read_line()
+	rv["firmware"] = read_line()
+	rv["temper"] = read_line()
+	rv["date"] = read_line()
 	--------------------------------
-	rv["simsel"] = file:read("*line")
-	rv["cops"] = file:read("*line")
-	rv["imei"] = file:read("*line")
-	rv["imsi"] = file:read("*line")
-	rv["iccid"] = file:read("*line")
-	rv["phone"] = file:read("*line")
+	rv["simsel"] = read_line()
+	rv["cops"] = read_line()
+	rv["imei"] = read_line()
+	rv["imsi"] = read_line()
+	rv["iccid"] = read_line()
+	rv["phone"] = read_line()
 	--------------------------------
-	rv["mode"] = file:read("*line")
-	rv["per"] = file:read("*line")
-	rv["rssi"] = file:read("*line")
-	rv["rsrq"] = file:read("*line")
-	rv["rscp"] = file:read("*line")
-	rv["sinr"] = file:read("*line")
+	rv["mode"] = read_line()
+	rv["per"] = read_line()
+	rv["rssi"] = read_line()
+	rv["rsrq"] = read_line()
+	rv["rscp"] = read_line()
+	rv["sinr"] = read_line()
 	-------------------------------
-	rv["mcc"] = file:read("*line")
-	rv["lac"] = file:read("*line")
-	rv["cid"] = file:read("*line")
-	rv["band"] = file:read("*line")
-	rv["rfcn"] = file:read("*line")
-	rv["pci"] = file:read("*line")
+	rv["mcc"] = read_line()
+	rv["lac"] = read_line()
+	rv["cid"] = read_line()
+	rv["band"] = read_line()
+	rv["rfcn"] = read_line()
+	rv["pci"] = read_line()
 	--------------------------------
-	luci.http.prepare_content("application/json")
-	luci.http.write_json(rv)
+	if file then
+		file:close()
+	end
+	http.prepare_content("application/json")
+	http.write_json(rv)
 end

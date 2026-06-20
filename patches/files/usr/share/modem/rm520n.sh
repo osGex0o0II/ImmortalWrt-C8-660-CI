@@ -71,7 +71,7 @@
     Cellid=` uci -q get modem.@ndis[0].cellid` || Cellid=0
     Freqlock=` uci -q get modem.@ndis[0].freqlock` || Freqlock=0
     AutoFreqLock=` uci -q get modem.@ndis[0].autofreqlock` || AutoFreqLock=0
-    Dataroaming=` uci -q get modem.@ndis[0].dataroaming` || Dataroaming=0
+    Dataroaming=`uci -q get modem.@ndis[0].dataroaming || uci -q get modem.@ndis[0].datarroaming` || Dataroaming=0
 
     # pingCheck.sh removed — was dead code (all commented out)
 

@@ -1,4 +1,5 @@
 local m, section, m2, s2
+local safe = require "luci.c8modem.safe"
 
 m = Map("modem", translate("移动网络"))
 section = m:section(TypedSection, "ndis", translate("蜂窝设置"))
@@ -21,12 +22,24 @@ simsel.rmempty = true
 
 pincode = section:taboption("general", Value, "pincode", translate("PIN密码"))
 pincode.default=""
+pincode.validate = function(self, value)
+    if safe.pin(value) then
+        return value
+    end
+    return nil, translate("PIN密码只能是4到8位数字")
+end
 ------
 apnconfig = section:taboption("general", Value, "apnconfig", translate("APN接入点"))
 apnconfig.rmempty = true
+apnconfig.validate = function(self, value)
+    if safe.apn(value) then
+        return value
+    end
+    return nil, translate("APN只能包含字母、数字、点、下划线或横线")
+end
 
 sim_card_stat = section:taboption("general", DummyValue, "sim_card_stat", translate("SIM卡状态"))
-sim_card_stat.value = luci.sys.exec("cat /tmp/simcardstat")
+sim_card_stat.value = safe.readfile("/tmp/simcardstat", "")
 ------------
 smode = section:taboption("advanced", ListValue, "smode", translate("网络制式"))
 smode.default = "0"
@@ -96,6 +109,12 @@ earfcn:depends("bandlist_nsa","41")
 earfcn:depends("bandlist_nsa","78")
 
 earfcn.rmempty = true
+earfcn.validate = function(self, value)
+    if safe.decimal(value, 10) then
+        return value
+    end
+    return nil, translate("EARFCN只能包含数字")
+end
 
 cellid = section:taboption("advanced", Value, "cellid", translate("小区PCI"))
 cellid:depends("bandlist_lte","1")
@@ -123,8 +142,14 @@ cellid:depends("bandlist_sa","1")
 cellid:depends("bandlist_nsa","41")
 
 cellid.rmempty = true
+cellid.validate = function(self, value)
+    if safe.decimal(value, 10) then
+        return value
+    end
+    return nil, translate("PCI只能包含数字")
+end
 
-dataroaming = section:taboption("advanced", Flag, "datarroaming", translate("行动网络漫游服务"),"适用于行动网路漫游的数据体验，可能会产生高昂的费用。")
+dataroaming = section:taboption("advanced", Flag, "dataroaming", translate("行动网络漫游服务"),"适用于行动网路漫游的数据体验，可能会产生高昂的费用。")
 dataroaming.rmempty = true
 
 autofreqlock = section:taboption("advanced", Flag, "autofreqlock", translate("基地站自锁定功能"),"适用于固定环境下使用的网路环境自优化，可能会降低或者增加网路延迟。与EARFCN与PCI锁定持久化不兼容")
@@ -172,6 +197,12 @@ adbkey = section:taboption("nativeipv6", DummyValue, "adbkey", translate("模块
 adbkey.value = luci.sys.exec("sendat 2 'at+qadbkey?'|grep '+QADBKEY:'|awk -F ' ' {'print $2'}|tr -d '\r\n'")
 
 adbunlockkey = section:taboption("nativeipv6", Value, "adbunlockkey", translate("ADB解锁码"))
+adbunlockkey.validate = function(self, value)
+    if safe.token(value, 128) then
+        return value
+    end
+    return nil, translate("ADB解锁码包含无效字符")
+end
 
 adb_status = section:taboption("nativeipv6", DummyValue, "adb_status", translate("模块ADB状态"))
 local adb_value = luci.sys.exec("adb devices | awk 'NR>1 {print $1}' | head -n -1")
@@ -184,7 +215,7 @@ if adb_value == "" then
 end
 
 nativeIPV6_status = section:taboption("nativeipv6", DummyValue, "nativeIPV6_status", translate("IPV6状态"))
-local nativeIPV6_status_value = luci.sys.exec("cat /tmp/ipv6prefix")
+local nativeIPV6_status_value = safe.readfile("/tmp/ipv6prefix", "")
 nativeIPV6_status.value = (nativeIPV6_status_value ~= "" and nativeIPV6_status_value) or "Native IPV6未使能"
 
 module_uptime = section:taboption("nativeipv6", DummyValue, "module_uptime", translate("模块运行时间"))

@@ -4,18 +4,17 @@
 	local sys = require "luci.sys"
 	local http = require "luci.http"
 	local dispatcher = require "luci.dispatcher"
+	local safe = require "luci.c8modem.safe"
 	local uci = require "luci.model.uci".cursor()
 
-	local devv = tostring(uci:get("sms_tool", "general", "readport"))
-	local smsmem = tostring(uci:get("sms_tool", "general", "storage"))
-	local sms = tostring(luci.sys.exec("sms_tool -s" .. smsmem .. " -d " .. devv .. " -f '%Y-%m-%d %H:%M' -j recv 2>/dev/null"))
-	local smsmer = tostring(uci:get("sms_tool", "general", "mergesms"))
+	local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
+	local smsmem = safe.sms_storage(uci:get("sms_tool", "general", "storage"))
+	local smsmer = tonumber(uci:get("sms_tool", "general", "mergesms")) or 0
 	local directx = tostring(uci:get("sms_tool", "general", "direction"))
 	local algox = tostring(uci:get("sms_tool", "general", "algorithm"))
-	local smscuta = string.sub (sms, 8)
-	local smscut = smscuta:sub(1, #smscuta - 2)
-	local statusb = luci.util.exec("sms_tool -s" .. smsmem .. " -d ".. devv .. " status")
-	local all = statusb:match('[^: ]+$')
+	local smscut = safe.sms_json(smsmem, devv)
+	local statusb = safe.sms_status(smsmem, devv)
+	local all = tonumber((statusb:match('[^: ]+$') or ""):match('%d+')) or 0
 	local location = ""
 
 	local l = string.sub (statusb, 15, 16)

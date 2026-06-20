@@ -6,8 +6,7 @@ local fs = require "nixio.fs"
 local sys = require "luci.sys"
 local http = require "luci.http"
 local dispatcher = require "luci.dispatcher"
-local http = require "luci.http"
-local sys = require "luci.sys"
+local safe = require "luci.c8modem.safe"
 local uci = require "luci.model.uci".cursor()
 
 local m
@@ -20,11 +19,11 @@ local try_devices4 = nixio.fs.glob("/dev/tty[A-Z][A-Z]*")
 local try_leds = nixio.fs.glob("/sys/class/leds/*")
 
 
-local devv = tostring(uci:get("sms_tool", "general", "readport"))
+local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
 
-local smsmem = tostring(uci:get("sms_tool", "general", "storage"))
+local smsmem = safe.sms_storage(uci:get("sms_tool", "general", "storage"))
 
-local statusb = luci.util.exec("sms_tool -s".. smsmem .. " -d ".. devv .. " status")
+local statusb = safe.sms_status(smsmem, devv)
 
 local smsnum = string.sub (statusb, 23, 27)
 
@@ -45,6 +44,12 @@ local node
 for node in try_devices1 do
 dev1:value(node, node)
 end
+end
+dev1.validate = function(self, value)
+	if safe.sms_port(value) then
+		return value
+	end
+	return nil, translate("请选择有效的短信读取端口")
 end
 
 mem = s:taboption(this_tab, ListValue, "storage", "消息存储区域", "消息存储在特定位置（例如SIM卡或模组内存），具体取决于设备类型。")
@@ -77,10 +82,22 @@ for node in try_devices2 do
 dev2:value(node, node)
 end
 end
+dev2.validate = function(self, value)
+	if safe.sms_port(value) then
+		return value
+	end
+	return nil, translate("请选择有效的短信发送端口")
+end
 
 local t = s:taboption(this_tab, Value, "pnumber", "前缀号码", "电话号码前需加国家前缀（中国为86，不加+）。若号码为5、4或3位，则视为短号，不加前缀。")
 t.rmempty = true
 t.default = 86
+t.validate = function(self, value)
+	if safe.decimal(value, 5) then
+		return value
+	end
+	return nil, translate("号码前缀只能包含数字")
+end
 
 local f = s:taboption(this_tab, Flag, "prefix", "为电话号码添加前缀", "自动在电话号码字段中添加前缀。")
 f.rmempty = false

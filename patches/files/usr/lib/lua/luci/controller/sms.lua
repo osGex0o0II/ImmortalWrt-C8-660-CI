@@ -6,7 +6,7 @@
 	local sys = require "luci.sys"
 	local http = require "luci.http"
 	local dispatcher = require "luci.dispatcher"
-	local sys = require "luci.sys"
+	local safe = require "luci.c8modem.safe"
 	local uci = require "luci.model.uci".cursor()
 
 module("luci.controller.sms", package.seeall)
@@ -25,32 +25,42 @@ end
 
 
 function delete_sms(smsindex)
-local devv = tostring(uci:get("sms_tool", "general", "readport"))
-local s = smsindex
-for d in s:gmatch("%d+") do 
-	os.execute("sms_tool -d " .. devv .. " delete " .. d .. "")
-end
+	local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
+	if not devv then
+		return
+	end
+
+	for _, d in ipairs(safe.sms_index(smsindex)) do
+		os.execute("sms_tool -d " .. safe.shellquote(devv) .. " delete " .. d)
+	end
 end
 
 function delete_all_sms()
-	local devv = tostring(uci:get("sms_tool", "general", "readport"))
-	os.execute("sms_tool -d " .. devv .. " delete all")
+	local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
+	if not devv then
+		return
+	end
+
+	os.execute("sms_tool -d " .. safe.shellquote(devv) .. " delete all")
 end
 
 
 function sms()
-    local devv = tostring(uci:get("sms_tool", "general", "sendport"))
     local sms_code = http.formvalue("scode")
 
-    nr = (string.sub(sms_code, 1, 20))
-    msgall = string.sub(sms_code, 21)
-    msg = string.gsub(msgall, "\n", " ")
-	nr = string.gsub(nr, "%s", "")
     if sms_code then
-		local odpall = encodeToPDU(nr, msg)
-	    local odp =  odpall:read("*a")
-	    odpall:close()
-        http.write(tostring(odp))
+		local nr = safe.phone_number(string.sub(sms_code, 1, 20))
+		local msgall = string.sub(sms_code, 21)
+		local msg = string.gsub(msgall or "", "\n", " ")
+
+		if not nr or #msg == 0 or #msg > 670 then
+			http.status(400, "Invalid SMS request")
+			http.write("Invalid SMS request")
+			return
+		end
+
+		local odp = encodeToPDU(nr, msg)
+        http.write(tostring(odp or ""))
     else
         http.write_json(http.formvalue())
     end
@@ -159,12 +169,19 @@ function encodeToPDU(phoneNumber, message)
         file:close()
     end
 
+	local output = {}
     for i, segment in ipairs(sendList) do
-        local odpall = io.popen("/usr/share/modem/mopdu " .. segment)
-        os.execute("sleep " .. 2)
-        
+		local safe_segment = safe.pdu_segment(segment)
+		if safe_segment then
+			local odpall = io.popen("/usr/share/modem/mopdu " .. safe_segment .. " 2>&1")
+			if odpall then
+				output[#output + 1] = odpall:read("*a") or ""
+				odpall:close()
+			end
+			os.execute("sleep 2")
+		end
     end
-    return odpall
+    return table.concat(output)
 
 end
 
@@ -199,15 +216,15 @@ end
 
 function slots()
 	local sim = { }
-	local devv = tostring(uci:get("sms_tool", "general", "readport"))
-	local smsmem = tostring(uci:get("sms_tool", "general", "storage"))
+	local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
+	local smsmem = safe.sms_storage(uci:get("sms_tool", "general", "storage"))
 
-	local statusb = luci.util.exec("sms_tool -s" .. smsmem .. " -d ".. devv .. " status")
+	local statusb = safe.sms_status(smsmem, devv)
 	local usex = string.sub (statusb, 23, 27)
 	local max = statusb:match('[^: ]+$')
 	sim["use"] = string.match(usex, '%d+')
 	local smscount = string.match(usex, '%d+')
-	sim["all"] = string.match(max, '%d+')
+	sim["all"] = string.match(max or "", '%d+')
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(sim)
 end

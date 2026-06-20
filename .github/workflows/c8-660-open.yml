@@ -501,10 +501,15 @@ jobs:
           require_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-aurora\.json' 'LuCI Aurora config app'
+          require_rootfs 'usr/lib/lua/luci/c8modem/safe\.lua' 'C8 modem LuCI safety helpers'
           require_rootfs 'usr/lib/lua/luci/controller/sms\.lua' 'legacy LuCI SMS controller'
           require_rootfs 'usr/lib/lua/luci/controller/modem\.lua' 'legacy LuCI modem controller'
+          require_rootfs 'usr/lib/lua/luci/model/cbi/modem\.lua' 'legacy LuCI modem settings CBI'
+          require_rootfs 'usr/lib/lua/luci/model/cbi/smsconfig\.lua' 'legacy LuCI SMS config CBI'
+          require_rootfs 'usr/lib/lua/luci/view/modem/readsms\.htm' 'legacy LuCI read SMS view'
           require_rootfs 'usr/lib/lua/luci/view/modem/sendsms\.htm' 'legacy LuCI send SMS view'
           require_rootfs 'usr/lib/lua/luci/view/zmode/net_status\.htm' 'legacy LuCI modem status view'
+          require_rootfs 'usr/lib/lua/luci/view/zmode/at\.htm' 'legacy LuCI AT command view'
 
       - name: Cleanup Old Releases
         if: ${{ inputs.publish_release }}

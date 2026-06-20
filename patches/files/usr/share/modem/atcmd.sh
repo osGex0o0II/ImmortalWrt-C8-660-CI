@@ -1,3 +1,3 @@
 #!/bin/sh
-rec=$(sendat $1 $2)
-echo $rec  >>  /tmp/result.at
+rec=$(sendat "$1" "$2")
+printf '%s\n' "$rec" >> /tmp/result.at
