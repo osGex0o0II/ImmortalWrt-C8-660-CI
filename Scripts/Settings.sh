@@ -84,16 +84,22 @@ fi
 
 # === mt76 WiFi 性能优化 ===
 
-# WED 启用（硬件 WiFi offload，MT7981 + MT7915E 支持）
-MODULES_CONF="./package/base-files/files/etc/modules.conf"
+# WED 启用由 ImmortalWrt mt76 包在 filogic 目标中通过 mt7915e 模块参数提供。
+# 不在 base-files 中注入 /etc/modules.conf，避免覆盖 ubox 拥有的 conffile。
+MT76_MAKEFILE="./package/kernel/mt76/Makefile"
 if [ "${ENABLE_WED:-true}" = "true" ]; then
-	mkdir -p "$(dirname "$MODULES_CONF")"
-	touch "$MODULES_CONF"
-	grep -q '^options mt7915e wed_enable=Y$' "$MODULES_CONF" || \
-		echo "options mt7915e wed_enable=Y" >> "$MODULES_CONF"
-	echo "mt76 WED enabled via /etc/modules.conf"
+	if grep -q '^[[:space:]]*MODPARAMS\.mt7915e:=wed_enable=Y$' "$MT76_MAKEFILE"; then
+		echo "mt76 WED enabled by upstream mt7915e module parameters"
+	else
+		echo "WARNING: upstream mt76 WED module parameter not found for mt7915e" >&2
+	fi
 elif [ "${ENABLE_WED:-true}" != "true" ]; then
-	echo "mt76 WED disabled by workflow input"
+	if [ -f "$MT76_MAKEFILE" ]; then
+		sed -i '/^[[:space:]]*MODPARAMS\.mt7915e:=wed_enable=Y$/d' "$MT76_MAKEFILE"
+		echo "mt76 WED disabled in upstream mt76 module parameters"
+	else
+		echo "WARNING: $MT76_MAKEFILE not found — WED module parameters not modified" >&2
+	fi
 fi
 
 # 网络栈 buffer 优化
