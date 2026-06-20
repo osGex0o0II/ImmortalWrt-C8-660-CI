@@ -430,6 +430,82 @@ jobs:
           fi
           find ./upload/ -maxdepth 1 -type f -print | sort
 
+      - name: Validate Firmware Rootfs
+        run: |
+          cd ./wrt/
+
+          SYSUPGRADE="./upload/immortalwrt-c8-660-sysupgrade.bin"
+          EXTRACT_DIR="$(mktemp -d)"
+          ROOTFS_LIST="/tmp/c8-660-rootfs.list"
+          UNSQUASHFS="./staging_dir/host/bin/unsquashfs"
+
+          [ -s "$SYSUPGRADE" ] || { echo "::error::Missing sysupgrade image: $SYSUPGRADE"; exit 1; }
+          tar -xf "$SYSUPGRADE" -C "$EXTRACT_DIR"
+          ROOTFS="$(find "$EXTRACT_DIR" -type f -name root | head -1)"
+          [ -s "$ROOTFS" ] || { echo "::error::Missing rootfs inside sysupgrade image"; find "$EXTRACT_DIR" -maxdepth 3 -type f -print; exit 1; }
+          [ -x "$UNSQUASHFS" ] || UNSQUASHFS="$(command -v unsquashfs || true)"
+          [ -n "$UNSQUASHFS" ] && [ -x "$UNSQUASHFS" ] || { echo "::error::unsquashfs not found"; exit 1; }
+
+          "$UNSQUASHFS" -ll "$ROOTFS" > "$ROOTFS_LIST"
+
+          require_rootfs() {
+            local pattern="$1"
+            local desc="$2"
+            if grep -Eq "$pattern" "$ROOTFS_LIST"; then
+              echo "OK: $desc"
+            else
+              echo "::error::Missing $desc ($pattern)"
+              grep -Ei 'mt76|mt7915|mt7981|mac80211|cfg80211|qmi|sms|sendat|modem|luci|wireless|firewall|aurora|partexp|ttyd|upnp|wol|nlbw' "$ROOTFS_LIST" | tail -120 || true
+              exit 1
+            fi
+          }
+
+          # mt76 WiFi stack
+          require_rootfs 'lib/modules/.*/cfg80211\.ko' 'cfg80211 kernel module'
+          require_rootfs 'lib/modules/.*/mac80211\.ko' 'mac80211 kernel module'
+          require_rootfs 'lib/modules/.*/mt76\.ko' 'mt76 core module'
+          require_rootfs 'lib/modules/.*/mt7915e\.ko' 'MT7981 mt76 radio module'
+          require_rootfs 'lib/firmware/mediatek/mt7981_rom_patch\.bin' 'MT7981 ROM patch firmware'
+          require_rootfs 'lib/firmware/mediatek/mt7981_wa\.bin' 'MT7981 WA firmware'
+          require_rootfs 'lib/firmware/mediatek/mt7981_wm\.bin' 'MT7981 WM firmware'
+          require_rootfs 'lib/firmware/mediatek/mt7981_wo\.bin' 'MT7981 WO firmware'
+          require_rootfs 'lib/netifd/wireless/mac80211\.sh' 'mac80211 netifd integration'
+          require_rootfs 'lib/wifi/mac80211\.uc' 'mac80211 default wireless generator'
+          require_rootfs 'usr/sbin/wpad' 'wpad wireless authenticator'
+
+          # 5G modem, QMI, SMS and serial support
+          require_rootfs 'lib/modules/.*/qmi_wwan\.ko' 'QMI WWAN kernel module'
+          require_rootfs 'lib/modules/.*/qmi_wwan_q\.ko' 'Quectel QMI kernel module'
+          require_rootfs 'lib/modules/.*/option\.ko' 'USB serial option module'
+          require_rootfs 'lib/modules/.*/usb_wwan\.ko' 'USB WWAN serial module'
+          require_rootfs 'sbin/uqmi' 'uqmi command'
+          require_rootfs 'usr/bin/sms_tool' 'sms_tool command'
+          require_rootfs 'bin/sendat' 'sendat command'
+          require_rootfs 'etc/init\.d/modeminit' 'modem init service'
+          require_rootfs 'etc/config/modem' 'modem UCI config'
+          require_rootfs 'etc/config/sms_tool' 'sms UCI config'
+
+          # LuCI shell and expected pages
+          require_rootfs 'www/cgi-bin/luci' 'LuCI CGI entrypoint'
+          require_rootfs 'usr/share/luci/menu\.d/luci-base\.json' 'LuCI base menu'
+          require_rootfs 'usr/share/luci/menu\.d/luci-mod-status\.json' 'LuCI status menu'
+          require_rootfs 'usr/share/luci/menu\.d/luci-mod-system\.json' 'LuCI system menu'
+          require_rootfs 'usr/share/luci/menu\.d/luci-mod-network\.json' 'LuCI network menu'
+          require_rootfs 'www/luci-static/resources/view/network/wireless\.js' 'LuCI wireless page'
+          require_rootfs 'www/luci-static/resources/view/network/interfaces\.js' 'LuCI interfaces page'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-firewall\.json' 'LuCI firewall app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-nlbwmon\.json' 'LuCI nlbwmon app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-package-manager\.json' 'LuCI package manager app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-partexp\.json' 'LuCI partition expansion app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-ttyd\.json' 'LuCI ttyd app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-aurora\.json' 'LuCI Aurora config app'
+          require_rootfs 'usr/lib/lua/luci/controller/sms\.lua' 'legacy LuCI SMS controller'
+          require_rootfs 'usr/lib/lua/luci/controller/modem\.lua' 'legacy LuCI modem controller'
+          require_rootfs 'usr/lib/lua/luci/view/modem/sendsms\.htm' 'legacy LuCI send SMS view'
+          require_rootfs 'usr/lib/lua/luci/view/zmode/net_status\.htm' 'legacy LuCI modem status view'
+
       - name: Cleanup Old Releases
         if: ${{ inputs.publish_release }}
         run: |
