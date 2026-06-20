@@ -136,11 +136,14 @@ function progressbar(percent, label) {
 	const pc = percent == null ? 0 : clamp(Math.round(percent), 0, 100);
 
 	return E('div', {
-		'class': 'cbi-progressbar',
+		'class': 'c8-progress-value',
 		'title': percent == null ? _('未知') : '%s (%d%%)'.format(label, pc)
-	}, E('div', {
-		'style': 'width:%.2f%%'.format(pc)
-	}, [ percent == null ? '\u00a0' : label ]));
+	}, [
+		E('div', { 'class': 'cbi-progressbar' }, E('div', {
+			'style': 'width:%.2f%%'.format(pc)
+		})),
+		E('span', { 'class': 'c8-progress-label' }, percent == null ? '-' : label)
+	]);
 }
 
 function signalRows(data) {
@@ -182,7 +185,13 @@ function renderTable(data, fields) {
 function renderSections(data) {
 	const children = [
 		E('h2', _('信号状态')),
-		E('div', { 'class': 'cbi-map-descr' }, _('接口存在刷新延迟，部分数据因模组限制可能为空。'))
+		E('div', { 'class': 'cbi-map-descr' }, _('接口存在刷新延迟，部分数据因模组限制可能为空。')),
+		E('style', {}, [
+			'.c8-progress-value{display:grid;grid-template-columns:minmax(120px,1fr) max-content;align-items:center;gap:.75em;max-width:460px}',
+			'.c8-progress-value .cbi-progressbar{min-width:120px}',
+			'.c8-progress-label{min-width:4.5em;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--text-muted,#5f636b)}',
+			'@media(max-width:480px){.c8-progress-value{grid-template-columns:1fr}.c8-progress-label{text-align:left;min-width:0}}'
+		].join(''))
 	];
 
 	if (data && data.error)
