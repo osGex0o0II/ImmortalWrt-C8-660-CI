@@ -47,8 +47,12 @@ uci set firewall.@defaults[0].fullcone='0'
 
 # Open/mt76 上游默认会把 nradio,wt9103 的 WAN 写成不存在的 wan 设备；
 # C8-660 的 5G 模块 RGMII 数据口实际是 eth1。
+uci -q set network.wan='interface'
 uci -q set network.wan.device='eth1'
+uci -q set network.wan.proto='dhcp'
+uci -q set network.wan6='interface'
 uci -q set network.wan6.device='eth1'
+uci -q set network.wan6.proto='dhcpv6'
 base_mac="$(mtd_get_mac_ascii bdinfo fac_mac 2>/dev/null)"
 case "$base_mac" in
 	[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f])

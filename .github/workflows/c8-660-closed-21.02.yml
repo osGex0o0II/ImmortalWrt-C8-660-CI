@@ -136,6 +136,58 @@ jobs:
             fi
           }
 
+          UPSERT_BEFORE_DEFAULT_CASE() {
+            local FILE="$1"
+            local SNIPPET="$2"
+            local MARKER="$3"
+            local DEFAULT_OCCURRENCE="${4:-1}"
+            local MARKER_OCCURRENCE="${5:-1}"
+            local TMP
+
+            [ -f "$FILE" ] || { LOG "SKIP (not found): $FILE"; return 0; }
+            [ -f "$SNIPPET" ] || { LOG "SKIP (snippet not found): $SNIPPET"; return 0; }
+
+            TMP="$(mktemp)"
+            awk -v marker="$MARKER" -v occ="$MARKER_OCCURRENCE" '
+              !skip && index($0, marker) {
+                count++
+                if (count == occ) {
+                  skip = 1
+                  next
+                }
+              }
+              skip && /^[[:space:]]*;;[[:space:]]*$/ {
+                skip = 0
+                next
+              }
+              !skip { print }
+            ' "$FILE" > "$TMP"
+            mv "$TMP" "$FILE"
+
+            SNIPPET_TMP="$(mktemp)"
+            cat "$SNIPPET" > "$SNIPPET_TMP"
+            if awk -v occ="$DEFAULT_OCCURRENCE" '
+              BEGIN { count = 0 }
+              /^[[:space:]]*\*\)[[:space:]]*$/ {
+                count++
+                if (count == occ) {
+                  while ((getline line < "'"$SNIPPET_TMP"'") > 0)
+                    print line
+                  close("'"$SNIPPET_TMP"'")
+                }
+              }
+              { print }
+              END { if (count < occ) exit 1 }
+            ' "$FILE" > "$FILE.tmp"; then
+              mv "$FILE.tmp" "$FILE"
+              rm -f "$SNIPPET_TMP"
+              LOG "UPSERTED before default case ($DEFAULT_OCCURRENCE): $FILE"
+            else
+              rm -f "$FILE.tmp" "$SNIPPET_TMP"
+              LOG "FAILED: $FILE"
+            fi
+          }
+
           # LED 定义（SDK 路径: target/linux/mediatek/mt7981/base-files/etc/board.d/）
           LED_FILE="./wrt/target/linux/mediatek/mt7981/base-files/etc/board.d/01_leds"
           INJECT_CASE "$LED_FILE" "$PATCHES_DIR/01_leds.snippet" "nradio,wt9103"
@@ -146,7 +198,7 @@ jobs:
 
           # 网络接口定义
           NET_FILE="./wrt/target/linux/mediatek/mt7981/base-files/etc/board.d/02_network"
-          INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_interfaces.snippet" "nradio,wt9103)" 1
+          UPSERT_BEFORE_DEFAULT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_interfaces.snippet" "nradio,wt9103)" 1 1
 
           # MAC 地址分配
           INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2

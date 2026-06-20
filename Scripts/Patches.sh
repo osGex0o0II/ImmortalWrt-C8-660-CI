@@ -7,7 +7,8 @@
 set -euo pipefail
 
 WRT_DIR="${1:-./wrt}"
-PATCHES_DIR="$GITHUB_WORKSPACE/patches"
+REPO_DIR="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}"
+PATCHES_DIR="$REPO_DIR/patches"
 
 LOG() { echo "=== $* ==="; }
 
@@ -81,6 +82,70 @@ INJECT_CASE() {
 	tail -15 "$FILE" | sed 's/^/    /'
 }
 
+# 向 case 语句第 N 个默认分支之前插入 snippet。
+# 用于 02_network：设备规则必须位于 *) 之前，否则默认分支会先匹配。
+UPSERT_BEFORE_DEFAULT_CASE() {
+	local FILE="$1"
+	local SNIPPET="$2"
+	local MARKER="$3"
+	local DEFAULT_OCCURRENCE="${4:-1}"
+	local MARKER_OCCURRENCE="${5:-1}"
+	local TMP
+
+	if [ ! -f "$FILE" ]; then
+		LOG "ERROR: file not found: $FILE"
+		return 1
+	fi
+	if [ ! -f "$SNIPPET" ]; then
+		LOG "ERROR: snippet not found: $SNIPPET"
+		return 1
+	fi
+
+	TMP="$(mktemp)"
+	awk -v marker="$MARKER" -v occ="$MARKER_OCCURRENCE" '
+		!skip && index($0, marker) {
+			count++
+			if (count == occ) {
+				skip = 1
+				next
+			}
+		}
+		skip && /^[[:space:]]*;;[[:space:]]*$/ {
+			skip = 0
+			next
+		}
+		!skip { print }
+	' "$FILE" > "$TMP"
+	mv "$TMP" "$FILE"
+
+	SNIPPET_TMP="$(mktemp)"
+	cat "$SNIPPET" > "$SNIPPET_TMP"
+	if awk -v occ="$DEFAULT_OCCURRENCE" '
+		BEGIN { count = 0 }
+		/^[[:space:]]*\*\)[[:space:]]*$/ {
+			count++
+			if (count == occ) {
+				while ((getline line < "'"$SNIPPET_TMP"'") > 0)
+					print line
+				close("'"$SNIPPET_TMP"'")
+			}
+		}
+		{ print }
+		END { if (count < occ) exit 1 }
+	' "$FILE" > "$FILE.tmp"; then
+		mv "$FILE.tmp" "$FILE"
+		rm -f "$SNIPPET_TMP"
+		LOG "UPSERTED before default case ($DEFAULT_OCCURRENCE): $FILE"
+	else
+		rm -f "$FILE.tmp" "$SNIPPET_TMP"
+		LOG "FAILED: $FILE"
+		return 1
+	fi
+
+	LOG "DIAGNOSTIC tail of $FILE:"
+	tail -15 "$FILE" | sed 's/^/    /'
+}
+
 LOG "Apply Patches"
 
 # 复制设备树文件
@@ -124,8 +189,8 @@ REQUIRE_PATTERN "$MAC_FILE" 'macaddr_add "\$hw_mac" 3' "C8-660 WiFi MAC fix"
 
 # 注入网络接口定义（第 1 个 esac — mediatek_setup_interfaces）
 NET_FILE="$WRT_DIR/target/linux/mediatek/filogic/base-files/etc/board.d/02_network"
-INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_interfaces.snippet" "nradio,wt9103)" 1
-REQUIRE_PATTERN "$NET_FILE" "ucidef_set_interfaces_lan_wan \"lan1 lan2 lan3 lan4\" eth1" "C8-660 network interface mapping"
+UPSERT_BEFORE_DEFAULT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_interfaces.snippet" "nradio,wt9103)" 1 1
+REQUIRE_PATTERN "$NET_FILE" "ucidef_set_interface_lan \"lan1 lan2 lan3 lan4\"" "C8-660 physical LAN port mapping"
 
 # 注入 MAC 地址分配（第 2 个 esac — mediatek_setup_macs）
 INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2
