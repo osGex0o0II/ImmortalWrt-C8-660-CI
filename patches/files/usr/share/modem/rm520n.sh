@@ -404,7 +404,8 @@
         printMsg "Start Modem Hardware Check"
         sendat 2 'at+qeth="rgmii","enable",1'
         while [ $macchk -lt 30 ]; do
-            mac_address=$(ifconfig | grep eth1 | awk '{print $5}' | tr -d '\r\n')
+            mac_address=$(cat /sys/class/net/eth1/address 2>/dev/null | tr -d '\r\n')
+            [ -n "$mac_address" ] || mac_address=$(ifconfig eth1 2>/dev/null | awk '/HWaddr/ {print $5}' | tr -d '\r\n')
 
             case "$mac_address" in
             *:*:*:*:*:*)

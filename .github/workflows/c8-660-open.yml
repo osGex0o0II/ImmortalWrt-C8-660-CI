@@ -491,8 +491,10 @@ jobs:
           require_rootfs 'usr/bin/sms_tool' 'sms_tool command'
           require_rootfs 'bin/sendat' 'sendat command'
           require_rootfs 'etc/init\.d/modeminit' 'modem init service'
+          require_rootfs 'etc/uci-defaults/99-v12-defaults\.sh' 'C8 first-boot defaults'
           require_rootfs 'etc/config/modem' 'modem UCI config'
           require_rootfs 'etc/config/sms_tool' 'sms UCI config'
+          require_rootfs 'usr/share/modem/rm520n\.sh' 'RM520N modem init script'
 
           # LuCI shell and expected pages
           require_rootfs 'www/cgi-bin/luci' 'LuCI CGI entrypoint'

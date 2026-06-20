@@ -205,7 +205,11 @@ adbunlockkey.validate = function(self, value)
 end
 
 adb_status = section:taboption("nativeipv6", DummyValue, "adb_status", translate("模块ADB状态"))
-local adb_value = luci.sys.exec("adb devices | awk 'NR>1 {print $1}' | head -n -1")
+local adb_available = luci.sys.exec("command -v adb 2>/dev/null")
+local adb_value = ""
+if adb_available ~= "" then
+    adb_value = luci.sys.exec("adb devices | awk 'NR>1 {print $1}' | head -n -1")
+end
 adb_status.value = (adb_value ~= "" and adb_value) or "设备ADB连接失败"
 adb_status.description="模块成功启用adb后此处会出现设备标识，请务必看到设备标识后再启用IPV6!"
 
@@ -219,7 +223,7 @@ local nativeIPV6_status_value = safe.readfile("/tmp/ipv6prefix", "")
 nativeIPV6_status.value = (nativeIPV6_status_value ~= "" and nativeIPV6_status_value) or "Native IPV6未使能"
 
 module_uptime = section:taboption("nativeipv6", DummyValue, "module_uptime", translate("模块运行时间"))
-module_uptime.value = luci.sys.exec("adb shell uptime")
+module_uptime.value = adb_available ~= "" and luci.sys.exec("adb shell uptime") or "ADB未安装"
 
 
 local apply = luci.http.formvalue("cbi.apply")
