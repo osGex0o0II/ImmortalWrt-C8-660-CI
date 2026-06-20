@@ -61,7 +61,7 @@ for section in $(uci -q show network | sed -n "s/^\(network\.[^.]*\)=device$/\1/
 	[ "$(uci -q get "$section.name")" = "wan" ] && uci -q delete "$section"
 done
 
-# 补齐后续 JS 频段工具使用的 RM520N 默认项；升级保留用户已有值。
+# 补齐模块设置高级功能使用的 RM520N 默认项；升级保留用户已有值。
 uci -q get modem.@ndis[0].nrmode >/dev/null || uci -q set modem.@ndis[0].nrmode='0'
 uci -q get modem.@ndis[0].bandlist_sa >/dev/null || uci -q set modem.@ndis[0].bandlist_sa='0'
 uci -q get modem.@ndis[0].bandlist_nsa >/dev/null || uci -q set modem.@ndis[0].bandlist_nsa='0'

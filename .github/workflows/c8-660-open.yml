@@ -539,7 +539,6 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/c8modem/wifi\.js' 'C8 wireless status JS page'
           require_rootfs 'www/luci-static/resources/view/c8modem/at\.js' 'C8 modem JS AT page'
           require_rootfs 'www/luci-static/resources/view/c8modem/cellscan\.js' 'C8 base station scan JS page'
-          require_rootfs 'www/luci-static/resources/view/c8modem/bands\.js' 'C8 band tool JS page'
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-read\.js' 'C8 SMS JS read page'
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-send\.js' 'C8 SMS JS send page'
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-settings\.js' 'C8 SMS JS settings page'

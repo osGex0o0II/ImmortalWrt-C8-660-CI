@@ -58,7 +58,7 @@ function renderRows(cells) {
 							uci.set('modem', '@ndis[0]', 'cellid', cell.pci || '');
 							return uci.save();
 						}).then(function() {
-							ui.addNotification(null, E('p', _('已写入频点和PCI，请到频段工具确认并应用。')));
+							ui.addNotification(null, E('p', _('已写入频点和PCI，请到模块设置确认并应用。')));
 						});
 					}
 				}, _('填入锁频'))
