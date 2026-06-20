@@ -109,7 +109,14 @@ jobs:
       - name: Initialization Values
         run: |
           echo "CCACHE_DIR=$(pwd)/wrt/.ccache" >> $GITHUB_ENV
-          echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")-${RANDOM}" >> $GITHUB_ENV
+          RELEASE_DATE="$(TZ=Asia/Shanghai date +"%Y.%m.%d")"
+          RELEASE_TIME="$(TZ=Asia/Shanghai date +"%H:%M")"
+          RELEASE_STAMP="$(TZ=Asia/Shanghai date +"%Y%m%d-%H%M")"
+          RUN_SUFFIX="r${GITHUB_RUN_NUMBER}-a${GITHUB_RUN_ATTEMPT}"
+          echo "WRT_DATE=${RELEASE_DATE}-${RELEASE_TIME//:/}" >> $GITHUB_ENV
+          echo "RELEASE_DATE=${RELEASE_DATE}" >> $GITHUB_ENV
+          echo "RELEASE_TIME=${RELEASE_TIME}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=c8-660-open-${RELEASE_STAMP}-${RUN_SUFFIX}" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
           echo "WRT_INFO=immortalwrt" >> $GITHUB_ENV
           echo "WRT_TARGET=nradio_wt9103" >> $GITHUB_ENV
@@ -528,7 +535,15 @@ jobs:
           case "$KEEP" in
             ''|*[!0-9]*) KEEP=3 ;;
           esac
-          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 -q 'sort_by(.[]; .publishedAt) | .[0:-'"$KEEP"'] | .[].tagName' 2>/dev/null) || true
+          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 --jq '
+            [
+              .[] | select(
+                (.tagName | startswith("c8-660-open-")) or
+                ((.tagName | startswith("immortalwrt-c8-660-")) and ((.tagName | startswith("immortalwrt-c8-660-closed-")) | not)) or
+                (.tagName | startswith("NRADIO-C8-660-immortalwrt-master-"))
+              )
+            ] | sort_by(.publishedAt) | .[0:-'"$KEEP"'] | .[].tagName
+          ' 2>/dev/null) || true
           for TAG in $RELEASES; do
             echo "Deleting release and tag: $TAG"
             gh release delete "$TAG" --yes 2>/dev/null || true
@@ -554,7 +569,8 @@ jobs:
         if: ${{ inputs.publish_release }}
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
-          tag_name: immortalwrt-c8-660-${{env.WRT_DATE}}
+          tag_name: ${{env.RELEASE_TAG}}
+          name: C8-660 Open (mt76) ${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}}
           fail_on_unmatched_files: true
           files: |
             ./wrt/upload/immortalwrt-c8-660-factory.bin
@@ -564,44 +580,34 @@ jobs:
             ./wrt/upload/*.manifest
             ./wrt/upload/sha256sums
           body: |
-            ## NRadio C8-660 (MT7981) ImmortalWrt 固件
+            ## NRadio C8-660 Open 固件
 
-            ### 先选文件
+            ### 下载
 
             | 场景 | 下载文件 | 说明 |
             |------|----------|------|
-            | 首次从原厂 NROS 刷入 | `immortalwrt-c8-660-factory.bin` | 通过 U-Boot TFTP 写入，会替换原厂系统 |
-            | 已运行 OpenWrt/ImmortalWrt 后升级 | `immortalwrt-c8-660-sysupgrade.bin` | 在 LuCI 备份/升级页面刷写 |
-            | 临时启动、调试、救援验证 | `immortalwrt-c8-660-initramfs.bin` | 内存启动镜像，不直接写入 Flash |
-            | 校验下载完整性 | `sha256sums` | 下载后先核对 SHA256 |
-            | 查看内置包列表 | `immortalwrt-mediatek-filogic.manifest` | 排错、复现构建、核对插件时使用 |
-            | 引导链/救砖参考 | `mt7981-bl2.bin` | 高级恢复文件，普通刷机不要使用 |
-
-            ### 刷机路径
-
-            **首次刷机（从原厂 NROS 刷入）：**
-            1. 按住 Reset 按键上电，进入 U-Boot TFTP 恢复模式
-            2. 电脑设置静态 IP 192.168.1.x（如 192.168.1.2）
-            3. 使用 TFTP 客户端上传 `immortalwrt-c8-660-factory.bin`
-            4. 等待 3-5 分钟，访问 http://192.168.1.1
-
-            **升级（同版本 OpenWrt）：**
-            - LuCI → 系统 → 备份/升级 → 刷写固件 → 选择 `immortalwrt-c8-660-sysupgrade.bin`
-
-            ### 下载后校验
-
-            刷写前建议校验固件完整性：
+            | 首次从原厂 NROS 刷入 | `immortalwrt-c8-660-factory.bin` | 通过 U-Boot TFTP 写入 |
+            | 已运行 OpenWrt/ImmortalWrt 后升级 | `immortalwrt-c8-660-sysupgrade.bin` | LuCI 备份/升级页面刷写 |
+            | 校验下载完整性 | `sha256sums` | 刷写前先核对 SHA256 |
 
             ```sh
             sha256sum -c sha256sums
             ```
 
-            如果只下载了单个固件文件，也可以打开 `sha256sums`，手动核对对应文件的 SHA256。
+            ### 高级文件
 
-            ### 固件信息
+            | 文件 | 用途 |
+            |------|------|
+            | `immortalwrt-c8-660-initramfs.bin` | 内存启动、临时调试、救援验证 |
+            | `mt7981-bl2.bin` | 引导链/救砖参考，普通刷机不要使用 |
+            | `*.manifest` | 内置包列表，用于排错和复现构建 |
+
+            ### 构建信息
 
             | 项目 | 值 |
             |------|-----|
+            | 发布时间 | ${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}} Asia/Shanghai |
+            | 构建类型 | Open / mt76 / mainline |
             | 源码 | ${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) |
             | 提交 | ${{env.WRT_HASH}} |
             | 内核 | ${{env.WRT_KVER}} |
@@ -610,14 +616,12 @@ jobs:
             | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
             | 插件 | ${{env.WRT_LIST}} |
 
-            ### 重要提示
+            ### 提示
 
-            - 登录 IP 已从原厂 `192.168.66.1` 变更为 `${{env.WRT_IP}}`。
+            - 首次刷入会替换原厂系统，请先备份 BL2 和 FIP 分区。
+            - 详细刷机流程、产物说明和风险说明见 [README](https://github.com/${{github.repository}}#使用流程)。
             - 5G 模组（RM520N-CN）首次启动约需 60 秒完成初始化。
-            - `mt7981-bl2.bin` 不用于日常刷机；只有明确知道自己在恢复引导链时才考虑使用。
-            - 从原厂系统首次刷入前，请备份 BL2 和 FIP 分区。
-
-            > ⚠️ 本项目编译产物使用 mainline 内核（6.x），与 NRadio SDK 内核（5.4）引导链不兼容。刷机前请务必通过 U-Boot TFTP 模式备份 BL2 和 FIP 分区。刷机风险自担。
+            - 本固件使用 mainline 内核（6.x），与 NRadio SDK 5.4 构建线不通用。刷机风险自担。
 
       - name: Upload Firmware Artifact
         if: ${{ inputs.publish_release == false }}

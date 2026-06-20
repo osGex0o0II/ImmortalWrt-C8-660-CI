@@ -64,7 +64,14 @@ jobs:
       - name: Initialization Values
         run: |
           echo "CCACHE_DIR=$(pwd)/wrt/.ccache" >> $GITHUB_ENV
-          echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")-${RANDOM}" >> $GITHUB_ENV
+          RELEASE_DATE="$(TZ=Asia/Shanghai date +"%Y.%m.%d")"
+          RELEASE_TIME="$(TZ=Asia/Shanghai date +"%H:%M")"
+          RELEASE_STAMP="$(TZ=Asia/Shanghai date +"%Y%m%d-%H%M")"
+          RUN_SUFFIX="r${GITHUB_RUN_NUMBER}-a${GITHUB_RUN_ATTEMPT}"
+          echo "WRT_DATE=${RELEASE_DATE}-${RELEASE_TIME//:/}" >> $GITHUB_ENV
+          echo "RELEASE_DATE=${RELEASE_DATE}" >> $GITHUB_ENV
+          echo "RELEASE_TIME=${RELEASE_TIME}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=c8-660-closed-24.10-${RELEASE_STAMP}-${RUN_SUFFIX}" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
           echo "WRT_INFO=c8-660-closed-24.10" >> $GITHUB_ENV
           echo "WRT_TARGET=nradio_wt9103_512m" >> $GITHUB_ENV
@@ -442,7 +449,14 @@ jobs:
       - name: Cleanup Old Releases
         run: |
           KEEP=3
-          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 -q 'sort_by(.[]; .publishedAt) | .[0:-'"$KEEP"'] | .[].tagName' 2>/dev/null) || true
+          RELEASES=$(gh release list --json tagName,publishedAt --limit 100 --jq '
+            [
+              .[] | select(
+                (.tagName | startswith("c8-660-closed-24.10-")) or
+                (.tagName | startswith("immortalwrt-c8-660-closed-24.10-"))
+              )
+            ] | sort_by(.publishedAt) | .[0:-'"$KEEP"'] | .[].tagName
+          ' 2>/dev/null) || true
           for TAG in $RELEASES; do
             echo "Deleting release and tag: $TAG"
             gh release delete "$TAG" --yes 2>/dev/null || true
@@ -466,7 +480,9 @@ jobs:
       - name: Release Firmware
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
         with:
-          tag_name: immortalwrt-c8-660-closed-24.10-${{env.WRT_DATE}}
+          tag_name: ${{env.RELEASE_TAG}}
+          name: C8-660 Closed 24.10 (archived) ${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}}
+          fail_on_unmatched_files: true
           files: |
             ./wrt/upload/immortalwrt-c8-660-closed-24.10-factory.bin
             ./wrt/upload/immortalwrt-c8-660-closed-24.10-sysupgrade.bin
@@ -475,23 +491,36 @@ jobs:
             ./wrt/upload/*.manifest
             ./wrt/upload/sha256sums
           body: |
-            ## NRadio C8-660 (MT7981) ImmortalWrt 固件 — 闭源驱动版 (24.10)
+            ## NRadio C8-660 Closed 24.10 固件
 
-            ### 刷机说明
+            > 这条构建线已归档，仅保留历史参考。
 
-            **首次刷机（从原厂 NROS 刷入）：**
-            1. 按住 Reset 按键上电，进入 U-Boot TFTP 恢复模式
-            2. 电脑设置静态 IP 192.168.1.x（如 192.168.1.2）
-            3. 使用 TFTP 客户端上传 `immortalwrt-c8-660-closed-24.10-factory.bin`
-            4. 等待 3-5 分钟，访问 http://192.168.1.1
+            ### 下载
 
-            **升级（同版本 OpenWrt）：**
-            - LuCI → 系统 → 备份/升级 → 刷写固件 → 选择 `immortalwrt-c8-660-closed-24.10-sysupgrade.bin`
+            | 场景 | 下载文件 | 说明 |
+            |------|----------|------|
+            | 首次从原厂 NROS 刷入 | `immortalwrt-c8-660-closed-24.10-factory.bin` | 通过 U-Boot TFTP 写入 |
+            | 已运行 OpenWrt/ImmortalWrt 后升级 | `immortalwrt-c8-660-closed-24.10-sysupgrade.bin` | LuCI 备份/升级页面刷写 |
+            | 校验下载完整性 | `sha256sums` | 刷写前先核对 SHA256 |
 
-            ### 固件信息
+            ```sh
+            sha256sum -c sha256sums
+            ```
+
+            ### 高级文件
+
+            | 文件 | 用途 |
+            |------|------|
+            | `immortalwrt-c8-660-closed-24.10-initramfs.bin` | 内存启动、临时调试、救援验证 |
+            | `mt7981-bl2-closed-24.10.bin` | 引导链/救砖参考，普通刷机不要使用 |
+            | `*.manifest` | 内置包列表，用于排错和复现构建 |
+
+            ### 构建信息
 
             | 项目 | 值 |
             |------|-----|
+            | 发布时间 | ${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}} Asia/Shanghai |
+            | 构建类型 | Closed / mt_wifi / archived |
             | 源码 | ${{env.WRT_REPO}} (${{env.WRT_BRANCH}}) |
             | 提交 | ${{env.WRT_HASH}} |
             | 内核 | ${{env.WRT_KVER}} |
@@ -501,14 +530,12 @@ jobs:
             | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
             | 主题 | Aurora |
 
-            ### 特性
+            ### 提示
 
-            - 基于 OpenWrt 24.10 + 内核 6.6
-            - mt_wifi 专有驱动 + WARP/HNAT 硬件加速
-            - shortcut-fe 快速转发 + BBR TCP 优化
-            - Aurora 主题
-
-            **注意：** 本版本使用 MediaTek 闭源 WiFi 驱动 (mt_wifi)，基于 padavanonly 仓库。刷机风险自担。
+            - 24.10 闭源线因未知面更大、设备支持需额外注入，已移动到 `archive/closed-24.10/`。
+            - 与当前 active Open/Closed 21.02 构建线不通用。
+            - 详细刷机流程、产物说明和风险说明见 [README](https://github.com/${{github.repository}}#使用流程)。
+            - 首次刷入会替换原厂系统，请先备份 BL2 和 FIP 分区。刷机风险自担。
 
       - name: Clean Build Workspace
         if: always()
