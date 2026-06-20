@@ -63,7 +63,7 @@ function smsIndexes(value) {
 	const seen = {};
 	const indexes = [];
 
-	String(value || '').replace(/\d+/g, function(index) {
+	String(value == null ? '' : value).replace(/\d+/g, function(index) {
 		index = String(+index);
 		if (!seen[index]) {
 			seen[index] = true;
@@ -92,12 +92,20 @@ function normalizeMessages(messages) {
 	});
 }
 
+function sortedIndexes(value, desc) {
+	return smsIndexes(value).sort(function(a, b) {
+		return desc ? (+b - +a) : (+a - +b);
+	});
+}
+
 function mergeMessages(messages, direction) {
 	const groups = {};
 
 	messages.forEach(function(msg) {
+		const expected = Math.max(+msg.total || 1, 1);
+		const part = Math.max(+msg.part || 1, 1);
 		const key = msg.total > 1
-			? [ msg.sender, msg.timestamp, msg.reference, msg.total ].join('|')
+			? [ msg.sender, msg.timestamp, msg.reference, expected ].join('|')
 			: [ msg.sender, msg.timestamp, msg.index ].join('|');
 
 		if (!groups[key])
@@ -105,31 +113,42 @@ function mergeMessages(messages, direction) {
 				index: [],
 				sender: msg.sender,
 				timestamp: msg.timestamp,
-				content: [],
-				parts: 0
+				content: {},
+				received: {},
+				parts: expected
 			};
 
 		groups[key].index = groups[key].index.concat(smsIndexes(msg.index));
-		groups[key].content[msg.part - 1] = msg.content;
-		groups[key].parts = Math.max(groups[key].parts, msg.total);
+		groups[key].content[part] = msg.content;
+		groups[key].received[part] = true;
+		groups[key].parts = Math.max(groups[key].parts, expected);
 	});
 
 	return Object.keys(groups).map(function(key) {
 		const item = groups[key];
-		const parts = item.content.filter(function(v) { return v != null; });
+		const parts = [];
+		const indexes = sortedIndexes(item.index.join(','));
+		const received = Object.keys(item.received).length;
+
+		for (let i = 1; i <= item.parts; i++)
+			if (item.content[i] != null)
+				parts.push(item.content[i]);
 
 		if (direction === 'End')
 			parts.reverse();
 
 		return {
-			index: item.index.join(','),
+			index: indexes.join(','),
 			sender: item.sender,
 			timestamp: item.timestamp,
 			content: parts.join(''),
-			parts: item.parts
+			parts: item.parts,
+			received: received,
+			complete: received >= item.parts,
+			sortIndex: indexes.length ? +indexes[indexes.length - 1] : -1
 		};
 	}).sort(function(a, b) {
-		return (+smsIndexes(b.index)[0] || 0) - (+smsIndexes(a.index)[0] || 0);
+		return b.sortIndex - a.sortIndex;
 	});
 }
 
@@ -182,6 +201,14 @@ return view.extend({
 
 			return rows.map(function(msg) {
 				const indexes = smsIndexes(msg.index).join(',');
+				let badge = '';
+
+				if (msg.parts > 1) {
+					if (msg.complete === false)
+						badge = E('span', { 'class': 'ifacebadge' }, _('缺少分段 %d/%d').format(msg.received || 0, msg.parts));
+					else
+						badge = E('span', { 'class': 'ifacebadge' }, _('合并 %d/%d 段').format(msg.received || msg.parts, msg.parts));
+				}
 
 				return E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td left', 'style': 'width:48px' }, E('input', {
@@ -196,8 +223,8 @@ return view.extend({
 					E('td', { 'class': 'td left', 'style': 'width:16%' }, msg.sender),
 					E('td', { 'class': 'td left', 'style': 'width:18%' }, msg.timestamp),
 					E('td', { 'class': 'td left' }, [
-						msg.parts > 1 ? E('span', { 'class': 'ifacebadge' }, _('合并 %d 段').format(msg.parts)) : '',
-						msg.parts > 1 ? ' ' : '',
+						badge,
+						badge ? ' ' : '',
 						msg.content || '-'
 					])
 				]);
@@ -278,7 +305,7 @@ return view.extend({
 
 			return smsConfig().then(function(cfg) {
 				let chain = Promise.resolve();
-				smsIndexes(indexes).forEach(function(index) {
+				sortedIndexes(indexes, true).forEach(function(index) {
 					chain = chain.then(function() {
 						return fs.exec('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, 'delete', index ]);
 					});
