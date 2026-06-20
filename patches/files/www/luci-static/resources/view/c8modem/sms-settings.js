@@ -2,6 +2,8 @@
 'require view';
 'require form';
 'require uci';
+'require fs';
+'require ui';
 
 function smsPort(section_id, value) {
 	value = value || '';
@@ -75,6 +77,24 @@ return view.extend({
 
 		o = s.taboption('send', form.Flag, 'information', _('显示号码说明'));
 		o.rmempty = false;
+
+		o = s.taboption('display', form.Button, '_delete_all', _('清空短信'));
+		o.inputtitle = _('删除全部短信');
+		o.inputstyle = 'remove';
+		o.onclick = function() {
+			if (!confirm(_('确认删除当前存储区域内的全部短信？')))
+				return Promise.resolve();
+
+			const storage = uci.get('sms_tool', 'general', 'storage') || 'ME';
+			const port = uci.get('sms_tool', 'general', 'readport') || '/dev/ttyUSB2';
+
+			return fs.exec('/usr/bin/sms_tool', [ '-s', storage, '-d', port, 'delete', 'all' ])
+				.then(function() {
+					ui.addNotification(null, E('p', _('已发送清空短信命令。')));
+				}).catch(function(e) {
+					ui.addNotification(null, E('p', e.message));
+				});
+		};
 
 		return m.render();
 	}

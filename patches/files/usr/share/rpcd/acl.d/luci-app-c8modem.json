@@ -6,7 +6,12 @@
 				"/usr/share/modem/zinfo.sh": [ "exec" ],
 				"/usr/share/modem/atcmd.sh *": [ "exec" ],
 				"/usr/share/modem/delatcmd.sh": [ "exec" ],
+				"/usr/bin/cellscan.sh *": [ "exec" ],
+				"/usr/bin/sms_tool *": [ "exec" ],
+				"/usr/bin/iwinfo *": [ "exec" ],
 				"/tmp/cpe_cell.file": [ "read" ],
+				"/tmp/cellscan.json": [ "read" ],
+				"/tmp/cellinfo": [ "read" ],
 				"/tmp/simcardstat": [ "read" ],
 				"/tmp/ipv6prefix": [ "read" ],
 				"/tmp/result.at": [ "read" ],
@@ -25,6 +30,8 @@
 				"/usr/share/modem/atcmd.sh *": [ "exec" ],
 				"/usr/share/modem/delatcmd.sh": [ "exec" ],
 				"/usr/share/modem/luci-reinit.sh": [ "exec" ],
+				"/usr/bin/cellscan.sh *": [ "exec" ],
+				"/usr/bin/sms_tool *": [ "exec" ],
 				"/tmp/freq.run": [ "write" ]
 			},
 			"ubus": {

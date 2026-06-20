@@ -31,12 +31,45 @@
 			"acl": [ "luci-app-c8modem" ]
 		}
 	},
+	"admin/modem/wifi": {
+		"title": "无线状态",
+		"order": 25,
+		"action": {
+			"type": "view",
+			"path": "c8modem/wifi"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
 	"admin/modem/at": {
 		"title": "调试工具",
 		"order": 30,
 		"action": {
 			"type": "view",
 			"path": "c8modem/at"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/cellscan": {
+		"title": "基站扫描",
+		"order": 35,
+		"action": {
+			"type": "view",
+			"path": "c8modem/cellscan"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/bands": {
+		"title": "频段工具",
+		"order": 38,
+		"action": {
+			"type": "view",
+			"path": "c8modem/bands"
 		},
 		"depends": {
 			"acl": [ "luci-app-c8modem" ]

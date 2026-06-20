@@ -27,6 +27,72 @@ nr_bw() {
 	esac
 }
 
+clamp_percent() {
+	if [ -z "$1" ]; then
+		echo ""
+	elif [ "$1" -lt 0 ]; then
+		echo 0
+	elif [ "$1" -gt 100 ]; then
+		echo 100
+	else
+		echo "$1"
+	fi
+}
+
+scale_metric() {
+	local value="$1"
+	local poor="$2"
+	local good="$3"
+	local score
+
+	[ -n "$value" ] || return 0
+	score=$(( (value - poor) * 100 / (good - poor) ))
+	clamp_percent "$score"
+}
+
+first_number() {
+	echo "$1" | grep -o -- "-[0-9]\{1,5\}\|[0-9]\{1,5\}" | head -1
+}
+
+update_signal_quality() {
+	local rsrp rsrq sinr rssi rsrp_score rsrq_score sinr_score rssi_score score parts
+
+	rsrp="$(first_number "$RSCP")"
+	rsrq="$(first_number "$ECIO")"
+	sinr="$(first_number "$SINR")"
+	rssi="$(first_number "$CSQ_RSSI")"
+	parts=0
+	score=0
+
+	if [ -n "$rsrp" ] && [ "$rsrp" -lt 0 ]; then
+		rsrp_score="$(scale_metric "$rsrp" -120 -75)"
+		score=$((score + rsrp_score * 45))
+		parts=$((parts + 45))
+	fi
+
+	if [ -n "$rsrq" ] && [ "$rsrq" -lt 0 ]; then
+		rsrq_score="$(scale_metric "$rsrq" -20 -7)"
+		score=$((score + rsrq_score * 25))
+		parts=$((parts + 25))
+	fi
+
+	if [ -n "$sinr" ]; then
+		sinr_score="$(scale_metric "$sinr" -5 30)"
+		score=$((score + sinr_score * 30))
+		parts=$((parts + 30))
+	fi
+
+	if [ "$parts" -gt 0 ]; then
+		CSQ_PER="$(clamp_percent $((score / parts)))%"
+		return
+	fi
+
+	if [ -n "$rssi" ] && [ "$rssi" -lt 0 ]; then
+		rssi_score="$(scale_metric "$rssi" -113 -51)"
+		CSQ_PER="$(clamp_percent "$rssi_score")%"
+	fi
+}
+
 #查询信息强度
 All_CSQ()
 {
@@ -493,6 +559,8 @@ Quectel_AT()
             fi
         fi
     fi
+
+    update_signal_quality
 
 
 }

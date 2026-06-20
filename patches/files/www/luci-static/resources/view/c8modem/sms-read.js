@@ -1,16 +1,51 @@
 'use strict';
 'require view';
-'require request';
+'require fs';
 'require uci';
 'require ui';
 
-function api(path) {
-	return L.url('admin/modem/' + path);
+function parseStatus(text, storage) {
+	const match = String(text || '').match(/Storage type:\s*([^,\s]+),\s*used:\s*(\d+),\s*total:\s*(\d+)/);
+
+	return {
+		storage: match ? match[1] : storage,
+		used: match ? +match[2] : 0,
+		total: match ? +match[3] : 0
+	};
 }
 
-function jsonRequest(path, query) {
-	return request.get(api(path), { query: query || {} }).then(function(res) {
-		return res.json();
+function smsConfig() {
+	return uci.load('sms_tool').then(function() {
+		return {
+			storage: uci.get('sms_tool', 'general', 'storage') || 'ME',
+			port: uci.get('sms_tool', 'general', 'readport') || '/dev/ttyUSB2'
+		};
+	});
+}
+
+function readMessages() {
+	return smsConfig().then(function(cfg) {
+		return Promise.all([
+			fs.exec('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, 'status' ]),
+			fs.exec('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, '-f', '%Y-%m-%d %H:%M', '-j', 'recv' ])
+		]).then(function(res) {
+			let parsed = {};
+			try {
+				parsed = JSON.parse(res[1].stdout || '{}');
+			} catch (e) {
+				parsed = {};
+			}
+
+			let messages = parsed.msg || parsed.messages || parsed;
+			if (!Array.isArray(messages))
+				messages = [];
+
+			return {
+				ok: true,
+				status: parseStatus(res[0].stdout, cfg.storage),
+				messages: messages
+			};
+		});
 	});
 }
 
@@ -114,7 +149,7 @@ function statusNodes(status, shown, raw) {
 return view.extend({
 	load: function() {
 		return Promise.all([
-			jsonRequest('sms_list'),
+			readMessages(),
 			uci.load('sms_tool')
 		]).then(function(data) {
 			return data[0];
@@ -216,7 +251,7 @@ return view.extend({
 		}
 
 		function refresh() {
-			return jsonRequest('sms_list').then(function(next) {
+			return readMessages().then(function(next) {
 				data = next;
 				messages = normalizeMessages(next.messages);
 				selected = {};
@@ -237,11 +272,15 @@ return view.extend({
 			if (!confirm(_('删除选中的短信？')))
 				return Promise.resolve();
 
-			return jsonRequest('delete_one', { indexes: indexes }).then(function(rv) {
-				if (!rv || rv.ok === false)
-					throw new Error(rv && rv.error || _('短信删除失败'));
-				return refresh();
-			}).catch(function(e) {
+			return smsConfig().then(function(cfg) {
+				let chain = Promise.resolve();
+				smsIndexes(indexes).forEach(function(index) {
+					chain = chain.then(function() {
+						return fs.exec('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, 'delete', index ]);
+					});
+				});
+				return chain;
+			}).then(refresh).catch(function(e) {
 				ui.addNotification(null, E('p', e.message));
 			});
 		}

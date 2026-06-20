@@ -1,6 +1,6 @@
 'use strict';
 'require view';
-'require request';
+'require fs';
 'require poll';
 
 const sections = [
@@ -50,11 +50,23 @@ const sections = [
 ];
 
 function readStatus() {
-	return request.get(L.url('admin/modem/get_csq')).then(function(res) {
-		if (!res.ok)
-			throw new Error(_('状态读取失败：HTTP %d').format(res.status));
+	return fs.exec('/usr/share/modem/zinfo.sh').then(function() {
+		return fs.read('/tmp/cpe_cell.file');
+	}).then(function(text) {
+		const lines = String(text || '').replace(/\r/g, '').split('\n');
+		const keys = [
+			'modem', 'conntype', 'firmware', 'temper', 'date',
+			'simsel', 'cops', 'imei', 'imsi', 'iccid', 'phone',
+			'mode', 'per', 'rssi', 'rsrq', 'rscp', 'sinr',
+			'mcc', 'lac', 'cid', 'band', 'rfcn', 'pci'
+		];
+		const rv = {};
 
-		return res.json();
+		keys.forEach(function(key, index) {
+			rv[key] = lines[index] || '';
+		});
+
+		return rv;
 	}).catch(function(e) {
 		return { error: e.message || String(e) };
 	});

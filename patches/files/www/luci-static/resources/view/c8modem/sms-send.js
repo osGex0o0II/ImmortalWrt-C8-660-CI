@@ -1,18 +1,8 @@
 'use strict';
 'require view';
-'require request';
+'require fs';
 'require uci';
 'require ui';
-
-function postSms(payload) {
-	const body = 'scode=%s'.format(encodeURIComponent(payload));
-
-	return request.post(L.url('admin/modem/run_sms'), body, {
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-	}).then(function(res) {
-		return res.text();
-	});
-}
 
 function validNumber(value) {
 	value = (value || '').replace(/\s+/g, '').replace(/^\+/, '');
@@ -30,6 +20,7 @@ return view.extend({
 		const prefixEnabled = uci.get('sms_tool', 'general', 'prefix') === '1';
 		const prefix = uci.get('sms_tool', 'general', 'pnumber') || '86';
 		const showInfo = uci.get('sms_tool', 'general', 'information') === '1';
+		const port = uci.get('sms_tool', 'general', 'sendport') || '/dev/ttyUSB2';
 		const number = E('input', {
 			type: 'text',
 			'class': 'cbi-input-text',
@@ -67,9 +58,10 @@ return view.extend({
 			}
 
 			output.textContent = _('发送中...');
-			return postSms((nr + '                    ').slice(0, 20) + msg).then(function(result) {
+			return fs.exec('/usr/bin/sms_tool', [ '-d', port, 'send', nr, msg ]).then(function(res) {
+				const result = [ res.stdout || '', res.stderr || '' ].join('\n').trim();
 				output.textContent = result || '-';
-				if (result.indexOf('+CMGS') !== -1) {
+				if (/sent|CMGS|OK/i.test(result)) {
 					ui.addNotification(null, E('p', _('短信发送成功')));
 					text.value = '';
 					updateCounter();
