@@ -52,21 +52,6 @@ return view.extend({
 		o.default = 'ME';
 		o.rmempty = false;
 
-		o = s.taboption('display', form.Flag, 'mergesms', _('合并分段短信'));
-		o.rmempty = false;
-
-		o = s.taboption('display', form.ListValue, 'algorithm', _('合并算法'));
-		o.value('Advanced', _('高级'));
-		o.value('Simple', _('简单'));
-		o.default = 'Advanced';
-		o.depends('mergesms', '1');
-
-		o = s.taboption('display', form.ListValue, 'direction', _('合并方向'));
-		o.value('Start', _('从头到尾'));
-		o.value('End', _('从尾到头'));
-		o.default = 'Start';
-		o.depends('algorithm', 'Advanced');
-
 		o = s.taboption('send', form.Flag, 'prefix', _('自动添加国家前缀'));
 		o.rmempty = false;
 

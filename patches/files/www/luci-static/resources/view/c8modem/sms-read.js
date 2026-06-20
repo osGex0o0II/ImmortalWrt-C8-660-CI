@@ -152,16 +152,16 @@ function mergeMessages(messages, direction) {
 	});
 }
 
-function statusNodes(status, shown, raw) {
+function statusNodes(status, shown) {
 	const used = +(status && status.used) || 0;
 	const total = +(status && status.total) || 0;
 	const remain = Math.max(total - used, 0);
 	const storage = status && status.storage ? status.storage : '-';
 
 	return E('div', { 'class': 'sms-stats' }, [
-		E('span', {}, _('存储 %s：已用 %d / 上限 %d / 剩余 %d').format(storage, used, total, remain)),
+		E('span', {}, _('收件箱：%d 条').format(shown)),
 		E('br'),
-		E('span', {}, _('当前显示：%d 条；原始短信：%d 条').format(shown, raw))
+		E('span', {}, _('存储 %s：剩余 %d / 上限 %d').format(storage, remain, total))
 	]);
 }
 
@@ -184,31 +184,25 @@ return view.extend({
 
 	render: function(data) {
 		let messages = normalizeMessages(data.messages);
-		let merged = uci.get('sms_tool', 'general', 'mergesms') !== '0';
-		let direction = uci.get('sms_tool', 'general', 'direction') || 'Start';
 		let selected = {};
 		let container;
 
 		function visibleMessages() {
-			return merged ? mergeMessages(messages, direction) : messages;
+			return mergeMessages(messages, 'Start');
 		}
 
 		function renderRows(rows) {
 			if (!rows.length)
 				return E('tr', { 'class': 'tr' }, [
-					E('td', { 'class': 'td center', 'colspan': 5 }, _('暂无短信'))
+					E('td', { 'class': 'td center', 'colspan': 4 }, _('暂无短信'))
 				]);
 
 			return rows.map(function(msg) {
 				const indexes = smsIndexes(msg.index).join(',');
 				let badge = '';
 
-				if (msg.parts > 1) {
-					if (msg.complete === false)
-						badge = E('span', { 'class': 'ifacebadge' }, _('缺少分段 %d/%d').format(msg.received || 0, msg.parts));
-					else
-						badge = E('span', { 'class': 'ifacebadge' }, _('合并 %d/%d 段').format(msg.received || msg.parts, msg.parts));
-				}
+				if (msg.complete === false)
+					badge = E('span', { 'class': 'ifacebadge' }, _('内容未完整接收'));
 
 				return E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td left', 'style': 'width:48px' }, E('input', {
@@ -219,7 +213,6 @@ return view.extend({
 							selected[indexes] = ev.target.checked;
 						}
 					})),
-					E('td', { 'class': 'td left', 'style': 'width:12%' }, indexes || '-'),
 					E('td', { 'class': 'td left', 'style': 'width:16%' }, msg.sender),
 					E('td', { 'class': 'td left', 'style': 'width:18%' }, msg.timestamp),
 					E('td', { 'class': 'td left' }, [
@@ -236,7 +229,6 @@ return view.extend({
 			const tableRows = [
 				E('tr', { 'class': 'tr table-titles' }, [
 					E('th', { 'class': 'th left' }, ''),
-					E('th', { 'class': 'th left' }, _('索引')),
 					E('th', { 'class': 'th left' }, _('发件人')),
 					E('th', { 'class': 'th left' }, _('接收时间')),
 					E('th', { 'class': 'th left' }, _('内容'))
@@ -248,22 +240,13 @@ return view.extend({
 				E('fieldset', { 'class': 'cbi-section' }, [
 					E('div', { 'class': 'cbi-value' }, [
 						E('label', { 'class': 'cbi-value-title' }, _('短信统计')),
-						E('div', { 'class': 'cbi-value-field' }, statusNodes(data.status, rows.length, messages.length))
+						E('div', { 'class': 'cbi-value-field' }, statusNodes(data.status, rows.length))
 					]),
 					E('div', { 'class': 'cbi-page-actions' }, [
 						E('button', {
 							'class': 'cbi-button cbi-button-apply',
 							click: refresh
 						}, _('刷新')),
-						' ',
-						E('button', {
-							'class': 'cbi-button',
-							click: function() {
-								merged = !merged;
-								selected = {};
-								redraw();
-							}
-						}, merged ? _('显示原始分段') : _('合并分段显示')),
 						' ',
 						E('button', {
 							'class': 'cbi-button cbi-button-reset',
