@@ -4,6 +4,25 @@
 set -euo pipefail
 
 PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
+CONFIG_FILES=(
+	"$GITHUB_WORKSPACE/Config/${WRT_CONFIG:-}.txt"
+	"$GITHUB_WORKSPACE/Config/PRIVATE.txt"
+)
+if [[ "${WRT_CONFIG:-}" == *CLOSED* ]]; then
+	CONFIG_FILES+=(
+		"$GITHUB_WORKSPACE/Config/CLOSED.txt"
+		"$GITHUB_WORKSPACE/Config/GENERAL-CLOSED.txt"
+	)
+else
+	CONFIG_FILES+=(
+		"$GITHUB_WORKSPACE/Config/OPEN.txt"
+		"$GITHUB_WORKSPACE/Config/GENERAL.txt"
+	)
+fi
+
+if ! grep -qs '^CONFIG_PACKAGE_luci-app-aurora-config=y$' "${CONFIG_FILES[@]}"; then
+	exit 0
+fi
 
 #修改aurora菜单式样
 AURORA_DIR=$(find . -maxdepth 1 -type d -iname "*luci-app-aurora-config*" 2>/dev/null | head -1)

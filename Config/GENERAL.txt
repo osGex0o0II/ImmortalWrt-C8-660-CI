@@ -34,10 +34,6 @@ CONFIG_PACKAGE_kmod-usb-storage=y
 # --- 内核模块: 隧道 ---
 CONFIG_PACKAGE_kmod-tun=y
 
-# --- 内核模块: 网络调度 (SQM/CAKE) ---
-CONFIG_PACKAGE_kmod-sched-cake=y
-CONFIG_PACKAGE_kmod-sched-core=y
-
 # --- 系统工具: 诊断 ---
 CONFIG_PACKAGE_blkid=y
 CONFIG_PACKAGE_cpufreq=y
@@ -75,7 +71,6 @@ CONFIG_PACKAGE_luci-app-ttyd=y
 CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-app-wol=y
 CONFIG_PACKAGE_luci-app-log=y
-CONFIG_PACKAGE_luci-proto-wireguard=y
 CONFIG_PACKAGE_luci-proto-3g=y
 CONFIG_PACKAGE_luci-proto-qmi=y
 

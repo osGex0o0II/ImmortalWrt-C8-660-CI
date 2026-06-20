@@ -74,7 +74,7 @@ fi
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config
 echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
-# luci-theme and luci-app-theme-config are set in OPEN.txt for the mt76 build.
+# luci-theme is set in OPEN.txt for the mt76 build.
 
 #引入私有扩展配置
 if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then

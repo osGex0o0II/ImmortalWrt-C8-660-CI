@@ -98,9 +98,27 @@ UPDATE_PACKAGE() {
 	echo "Package ready: $PKG_NAME"
 }
 
+CONFIG_FILES=(
+	"$GITHUB_WORKSPACE/Config/${WRT_CONFIG:-}.txt"
+	"$GITHUB_WORKSPACE/Config/PRIVATE.txt"
+)
+if [[ "${WRT_CONFIG:-}" == *CLOSED* ]]; then
+	CONFIG_FILES+=(
+		"$GITHUB_WORKSPACE/Config/CLOSED.txt"
+		"$GITHUB_WORKSPACE/Config/GENERAL-CLOSED.txt"
+	)
+else
+	CONFIG_FILES+=(
+		"$GITHUB_WORKSPACE/Config/OPEN.txt"
+		"$GITHUB_WORKSPACE/Config/GENERAL.txt"
+	)
+fi
+
 # 主题
 UPDATE_PACKAGE "luci-theme-aurora" "eamonxg/luci-theme-aurora" "master" "" "aurora" "" "aurora"
-UPDATE_PACKAGE "luci-app-aurora-config" "eamonxg/luci-app-aurora-config" "master" "" "aurora-config" "" "aurora_config"
+if grep -qs '^CONFIG_PACKAGE_luci-app-aurora-config=y$' "${CONFIG_FILES[@]}"; then
+	UPDATE_PACKAGE "luci-app-aurora-config" "eamonxg/luci-app-aurora-config" "master" "" "aurora-config" "" "aurora_config"
+fi
 
 # 插件
 UPDATE_PACKAGE "luci-app-partexp" "sirpdboy/luci-app-partexp" "main" "" "partexp" "luci-app-partexp" "partexp"

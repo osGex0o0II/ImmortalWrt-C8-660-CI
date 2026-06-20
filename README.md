@@ -34,7 +34,6 @@ NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 | 插件 | 说明 |
 |------|------|
 | luci-theme-aurora | Aurora 主题 |
-| luci-app-aurora-config | Aurora 主题配置 |
 | luci-app-partexp | 分区扩容 |
 
 ## 内核模块
@@ -187,8 +186,9 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 
 | 特性 | 说明 | 配置位置 |
 |------|------|----------|
-| WED 硬件加速 | MT7981 内置 WiFi→Ethernet 硬件 offload，吞吐量 +20-40%，CPU 占用 -30% | `Scripts/Settings.sh` |
-| SQM/CAKE QoS | 智能队列管理，消除 bufferbloat，降低游戏/VoIP 延迟 | `Config/GENERAL.txt` |
+| WED 硬件加速 | MT7981 内置 WiFi→Ethernet 硬件 offload，降低 CPU 占用并提升 5G CPE 转发吞吐 | `Scripts/Settings.sh` |
+| 硬件流卸载 | 启用 MediaTek 硬件 flow offloading，优先服务 5G CPE 吞吐场景 | `Scripts/Settings.sh` |
+| Packet Steering | 启用 RPS 多核软中断分摊，降低单核瓶颈 | `Scripts/Settings.sh` |
 | 网络栈调优 | TCP/UDP buffer 扩大 + NAPI 轮询参数优化 | `Scripts/Settings.sh` |
 | 第三方包锁定 | 通过 `PKG_LOCK_<name>_COMMIT` 环境变量锁定包版本 | `Scripts/Packages.sh` |
 | SHA256 脚本校验 | `init_build_environment.sh` 使用仓库 pin 文件校验，并由定时工作流跟随上游更新 | `.github/init_build_environment.sha256`, `.github/workflows/update-init-build-sha.yml` |

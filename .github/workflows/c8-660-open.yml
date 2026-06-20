@@ -509,7 +509,6 @@ jobs:
           require_rootfs 'usr/share/luci/menu\.d/luci-app-ttyd\.json' 'LuCI ttyd app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-aurora\.json' 'LuCI Aurora config app'
           require_rootfs 'usr/lib/lua/luci/c8modem/safe\.lua' 'C8 modem LuCI safety helpers'
           require_rootfs 'usr/lib/lua/luci/controller/sms\.lua' 'legacy LuCI SMS controller'
           require_rootfs 'usr/lib/lua/luci/controller/modem\.lua' 'legacy LuCI modem controller'
