@@ -134,6 +134,9 @@ REQUIRE_FILE "$MODEM_DST/usr/share/luci/menu.d/luci-app-c8modem.json"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/status.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/settings.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/at.js"
+REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-read.js"
+REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-send.js"
+REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-settings.js"
 
 # 修复覆盖层脚本可执行权限
 LOG "Fixing executable permissions for overlay files"

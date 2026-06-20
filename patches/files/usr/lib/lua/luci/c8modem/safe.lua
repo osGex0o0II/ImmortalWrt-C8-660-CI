@@ -60,12 +60,19 @@ end
 function M.sms_index(value)
 	value = tostring(value or "")
 	local indexes = {}
+	local seen = {}
 
 	for index in value:gmatch("%d+") do
-		if #index <= 5 then
-			indexes[#indexes + 1] = index
+		local number = tonumber(index)
+		if number and number >= 0 and number <= 99999 and not seen[number] then
+			seen[number] = true
+			indexes[#indexes + 1] = tostring(number)
 		end
 	end
+
+	table.sort(indexes, function(a, b)
+		return tonumber(a) > tonumber(b)
+	end)
 
 	return indexes
 end
@@ -129,6 +136,17 @@ function M.sms_status(storage, port)
 	return util.exec("sms_tool -s" .. mem .. " -d " .. M.shellquote(dev) .. " status 2>/dev/null") or ""
 end
 
+function M.sms_status_info(storage, port)
+	local text = M.sms_status(storage, port)
+	local mem, used, total = text:match("Storage type:%s*([^,%s]+),%s*used:%s*(%d+),%s*total:%s*(%d+)")
+
+	return {
+		storage = M.sms_storage(mem or storage),
+		used = tonumber(used) or 0,
+		total = tonumber(total) or 0
+	}
+end
+
 function M.sms_json(storage, port)
 	local dev = M.sms_port(port)
 	local mem = M.sms_storage(storage)
@@ -142,6 +160,21 @@ function M.sms_json(storage, port)
 
 	local json = output:match("(%b[])")
 	return json or "[]"
+end
+
+function M.sms_raw_json(storage, port)
+	local dev = M.sms_port(port)
+	local mem = M.sms_storage(storage)
+	local output
+
+	if not dev then
+		return "{}"
+	end
+
+	output = util.exec("sms_tool -s" .. mem .. " -d " .. M.shellquote(dev) ..
+		" -f '%Y-%m-%d %H:%M' -j recv 2>/dev/null") or "{}"
+
+	return output:match("(%b{})") or output:match("(%b[])") or "{}"
 end
 
 return M

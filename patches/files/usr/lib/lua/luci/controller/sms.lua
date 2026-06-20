@@ -1,47 +1,93 @@
 -- Copyright 2020-2022 Rafa³ Wabik (IceG) - From eko.one.pl forum
 -- Licensed to the GNU General Public License v3.0.
 
-	local util = require "luci.util"
-	local fs = require "nixio.fs"
-	local sys = require "luci.sys"
 	local http = require "luci.http"
-	local dispatcher = require "luci.dispatcher"
+	local jsonc = require "luci.jsonc"
 	local safe = require "luci.c8modem.safe"
 	local uci = require "luci.model.uci".cursor()
 
 module("luci.controller.sms", package.seeall)
 
 function index()
-	entry({"admin", "modem", "readsms"}, template("modem/readsms"), translate("短信接收"), 20)
-	entry({"admin", "modem", "sendsms"}, template("modem/sendsms"), translate("发送短信"), 30)
-	if nixio.fs.access("/etc/config/sms_tool") then
-		entry({"admin", "modem", "smsconfig"}, cbi("smsconfig"), translate("短信设置"), 50)
-	end
-	entry({"admin", "modem", "delete_one"}, call("delete_sms", smsindex), nil).leaf = true
+	entry({"admin", "modem", "sms_list"}, call("list_sms"), nil).leaf = true
+
+	entry({"admin", "modem", "delete_one"}, call("delete_sms"), nil).leaf = true
 	entry({"admin", "modem", "delete_all"}, call("delete_all_sms"), nil).leaf = true
 	entry({"admin", "modem", "run_sms"}, call("sms"), nil).leaf = true
 	entry({"admin", "modem", "readsim"}, call("slots"), nil).leaf = true
+
+	entry({"admin", "modem", "readsms"}, alias("admin", "modem", "sms", "read"), nil).leaf = true
+	entry({"admin", "modem", "sendsms"}, alias("admin", "modem", "sms", "send"), nil).leaf = true
+	entry({"admin", "modem", "smsconfig"}, alias("admin", "modem", "sms", "settings"), nil).leaf = true
+end
+
+local function sms_context()
+	local dev = safe.sms_port(uci:get("sms_tool", "general", "readport"))
+	local mem = safe.sms_storage(uci:get("sms_tool", "general", "storage"))
+
+	return dev, mem
+end
+
+function list_sms()
+	local devv, smsmem = sms_context()
+	if not devv then
+		http.status(400, "Invalid SMS port")
+		http.write_json({ ok = false, error = "Invalid SMS port" })
+		return
+	end
+
+	local raw = safe.sms_raw_json(smsmem, devv)
+	local parsed = jsonc.parse(raw) or {}
+	local messages = parsed.msg or parsed.messages or parsed
+	if type(messages) ~= "table" then
+		messages = {}
+	end
+
+	http.prepare_content("application/json")
+	http.write_json({
+		ok = true,
+		status = safe.sms_status_info(smsmem, devv),
+		messages = messages
+	})
 end
 
 
 function delete_sms(smsindex)
 	local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
+	local smsmem = safe.sms_storage(uci:get("sms_tool", "general", "storage"))
+	local indexes = safe.sms_index(smsindex or http.formvalue("index") or http.formvalue("indexes"))
+	local deleted = 0
+
 	if not devv then
+		http.status(400, "Invalid SMS port")
+		http.write_json({ ok = false, error = "Invalid SMS port" })
 		return
 	end
 
-	for _, d in ipairs(safe.sms_index(smsindex)) do
-		os.execute("sms_tool -d " .. safe.shellquote(devv) .. " delete " .. d)
+	for _, d in ipairs(indexes) do
+		local rc = os.execute("sms_tool -s" .. smsmem .. " -d " .. safe.shellquote(devv) .. " delete " .. d .. " >/dev/null 2>&1")
+		if rc == true or rc == 0 then
+			deleted = deleted + 1
+		end
 	end
+
+	http.prepare_content("application/json")
+	http.write_json({ ok = true, deleted = deleted, status = safe.sms_status_info(smsmem, devv) })
 end
 
 function delete_all_sms()
 	local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
+	local smsmem = safe.sms_storage(uci:get("sms_tool", "general", "storage"))
+
 	if not devv then
+		http.status(400, "Invalid SMS port")
+		http.write_json({ ok = false, error = "Invalid SMS port" })
 		return
 	end
 
-	os.execute("sms_tool -d " .. safe.shellquote(devv) .. " delete all")
+	os.execute("sms_tool -s" .. smsmem .. " -d " .. safe.shellquote(devv) .. " delete all >/dev/null 2>&1")
+	http.prepare_content("application/json")
+	http.write_json({ ok = true, status = safe.sms_status_info(smsmem, devv) })
 end
 
 
@@ -219,12 +265,10 @@ function slots()
 	local devv = safe.sms_port(uci:get("sms_tool", "general", "readport"))
 	local smsmem = safe.sms_storage(uci:get("sms_tool", "general", "storage"))
 
-	local statusb = safe.sms_status(smsmem, devv)
-	local usex = string.sub (statusb, 23, 27)
-	local max = statusb:match('[^: ]+$')
-	sim["use"] = string.match(usex, '%d+')
-	local smscount = string.match(usex, '%d+')
-	sim["all"] = string.match(max or "", '%d+')
+	local status = safe.sms_status_info(smsmem, devv)
+	sim["storage"] = status.storage
+	sim["use"] = status.used
+	sim["all"] = status.total
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(sim)
 end

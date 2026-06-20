@@ -531,12 +531,9 @@ jobs:
           require_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
           require_rootfs 'usr/lib/lua/luci/c8modem/safe\.lua' 'C8 modem LuCI safety helpers'
-          require_rootfs 'usr/lib/lua/luci/controller/sms\.lua' 'legacy LuCI SMS controller'
+          require_rootfs 'usr/lib/lua/luci/controller/sms\.lua' 'C8 SMS LuCI API controller'
           require_rootfs 'usr/lib/lua/luci/controller/modem\.lua' 'legacy LuCI modem controller'
           require_rootfs 'usr/lib/lua/luci/model/cbi/modem\.lua' 'legacy LuCI modem settings CBI'
-          require_rootfs 'usr/lib/lua/luci/model/cbi/smsconfig\.lua' 'legacy LuCI SMS config CBI'
-          require_rootfs 'usr/lib/lua/luci/view/modem/readsms\.htm' 'legacy LuCI read SMS view'
-          require_rootfs 'usr/lib/lua/luci/view/modem/sendsms\.htm' 'legacy LuCI send SMS view'
           require_rootfs 'usr/lib/lua/luci/view/zmode/net_status\.htm' 'legacy LuCI modem status view'
           require_rootfs 'usr/lib/lua/luci/view/zmode/at\.htm' 'legacy LuCI AT command view'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-c8modem\.json' 'C8 modem LuCI JS menu'
@@ -544,6 +541,52 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/c8modem/status\.js' 'C8 modem JS status page'
           require_rootfs 'www/luci-static/resources/view/c8modem/settings\.js' 'C8 modem JS settings page'
           require_rootfs 'www/luci-static/resources/view/c8modem/at\.js' 'C8 modem JS AT page'
+          require_rootfs 'www/luci-static/resources/view/c8modem/sms-read\.js' 'C8 SMS JS read page'
+          require_rootfs 'www/luci-static/resources/view/c8modem/sms-send\.js' 'C8 SMS JS send page'
+          require_rootfs 'www/luci-static/resources/view/c8modem/sms-settings\.js' 'C8 SMS JS settings page'
+          require_rootfs 'www/luci-static/resources/view/status(.*/)?10_system\.js' 'LuCI system status JS'
+
+          reject_rootfs() {
+            local pattern="$1"
+            local desc="$2"
+            if grep -Eq "$pattern" "$ROOTFS_LIST"; then
+              echo "::error::Unexpected legacy file in rootfs: $desc ($pattern)"
+              grep -E "$pattern" "$ROOTFS_LIST" || true
+              exit 1
+            fi
+            echo "OK: no $desc"
+          }
+
+          reject_rootfs 'usr/lib/lua/luci/model/cbi/smsconfig\.lua' 'legacy LuCI SMS config CBI'
+          reject_rootfs 'usr/lib/lua/luci/view/modem/readsms\.htm' 'legacy LuCI read SMS view'
+          reject_rootfs 'usr/lib/lua/luci/view/modem/sendsms\.htm' 'legacy LuCI send SMS view'
+          reject_rootfs 'usr/share/rpcd/acl\.d/luci-app-sms-tool\.json' 'legacy LuCI SMS ACL'
+
+          STATUS_PATHS="$(sed -n 's#.*squashfs-root/\(www/luci-static/resources/view/status.*/10_system\.js\)$#\1#p' "$ROOTFS_LIST")"
+          if [ -z "$STATUS_PATHS" ]; then
+            echo "::error::LuCI system status JS was not found in firmware rootfs"
+            exit 1
+          fi
+          STATUS_MARKER_COUNT=0
+          while IFS= read -r STATUS_PATH; do
+            [ -n "$STATUS_PATH" ] || continue
+            STATUS_TEXT="$("$UNSQUASHFS" -cat "$ROOTFS" "$STATUS_PATH")"
+            CURRENT_MARKER_COUNT="$(printf '%s' "$STATUS_TEXT" | grep -o " / $WRT_MARK-" | wc -l | tr -d '[:space:]')"
+            STATUS_MARKER_COUNT=$((STATUS_MARKER_COUNT + CURRENT_MARKER_COUNT))
+            if [ "$CURRENT_MARKER_COUNT" -gt 0 ] && ! printf '%s' "$STATUS_TEXT" | grep -q " / $WRT_MARK-$WRT_DATE"; then
+              echo "::error::LuCI status marker in $STATUS_PATH is stale"
+              printf '%s\n' "$STATUS_TEXT" | grep -o "$WRT_MARK-[^']*" || true
+              exit 1
+            fi
+          done <<< "$STATUS_PATHS"
+          if [ "$STATUS_MARKER_COUNT" -ne 1 ]; then
+            echo "::error::expected exactly one LuCI build marker in rootfs, found $STATUS_MARKER_COUNT"
+            for STATUS_PATH in $STATUS_PATHS; do
+              "$UNSQUASHFS" -cat "$ROOTFS" "$STATUS_PATH" | grep -o "$WRT_MARK-[^']*" || true
+            done
+            exit 1
+          fi
+          echo "OK: LuCI build marker is current and unique"
 
           ROOT_SHADOW="$("$UNSQUASHFS" -cat "$ROOTFS" etc/shadow | sed -n 's/^root:\([^:]*\):.*/\1/p')"
           if [ -z "$ROOT_SHADOW" ]; then

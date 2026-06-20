@@ -17,7 +17,7 @@
 			"ubus": {
 				"file": [ "exec", "read" ]
 			},
-			"uci": [ "modem" ]
+			"uci": [ "modem", "sms_tool" ]
 		},
 		"write": {
 			"file": {
@@ -30,7 +30,7 @@
 			"ubus": {
 				"file": [ "exec", "write" ]
 			},
-			"uci": [ "modem" ]
+			"uci": [ "modem", "sms_tool" ]
 		}
 	}
 }

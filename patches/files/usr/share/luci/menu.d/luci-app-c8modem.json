@@ -41,5 +41,48 @@
 		"depends": {
 			"acl": [ "luci-app-c8modem" ]
 		}
+	},
+	"admin/modem/sms": {
+		"title": "短信工具",
+		"order": 40,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/sms/read": {
+		"title": "短信接收",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "c8modem/sms-read"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/sms/send": {
+		"title": "短信发送",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "c8modem/sms-send"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/sms/settings": {
+		"title": "短信设置",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "c8modem/sms-settings"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
 	}
 }

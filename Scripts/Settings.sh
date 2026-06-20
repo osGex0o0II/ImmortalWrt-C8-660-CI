@@ -25,16 +25,50 @@ else
 fi
 
 # 添加编译日期标识
-STATUS_JS="./feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/10_system.js"
-if [ -f "$STATUS_JS" ]; then
-	perl -0pi -e "s/\\s*\\+\\s*\\(' \\/ ${WRT_MARK}-[^']+'\\)//g" "$STATUS_JS"
-	sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" "$STATUS_JS"
-	if [ "$(grep -o " / $WRT_MARK-" "$STATUS_JS" | wc -l)" -ne 1 ]; then
-		echo "ERROR: failed to add exactly one LuCI build marker to $STATUS_JS" >&2
+STATUS_DIR="./feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status"
+mapfile -t STATUS_FILES < <(find "$STATUS_DIR" -type f -name 10_system.js 2>/dev/null | sort)
+if [ "${#STATUS_FILES[@]}" -gt 0 ]; then
+	for STATUS_JS in "${STATUS_FILES[@]}"; do
+		sed -i -E "s/[[:space:]]*\\+[[:space:]]*\\(' \\/ ${WRT_MARK}-[^']+'\\)//g" "$STATUS_JS"
+	done
+
+	STATUS_JS=""
+	for CANDIDATE in \
+		"$STATUS_DIR/include/10_system.js" \
+		"$STATUS_DIR/10_system.js"
+	do
+		if [ -f "$CANDIDATE" ]; then
+			STATUS_JS="$CANDIDATE"
+			break
+		fi
+	done
+	if [ -z "$STATUS_JS" ]; then
+		STATUS_JS="${STATUS_FILES[0]}"
+	fi
+
+	if ! grep -Eq "\\(luciversion[[:space:]]*\\|\\|[[:space:]]*''\\)" "$STATUS_JS"; then
+		echo "ERROR: luciversion marker anchor not found in $STATUS_JS" >&2
 		exit 1
 	fi
+	sed -i -E "0,/\\(luciversion[[:space:]]*\\|\\|[[:space:]]*''\\)/s//(luciversion || '') + (' \\/ $WRT_MARK-$WRT_DATE')/" "$STATUS_JS"
+
+	MARKER_COUNT=0
+	for STATUS_JS in "${STATUS_FILES[@]}"; do
+		if ! grep -Eq "\\(luciversion[[:space:]]*\\|\\|[[:space:]]*''\\)" "$STATUS_JS"; then
+			echo "ERROR: luciversion marker anchor missing after update in $STATUS_JS" >&2
+			exit 1
+		fi
+		FILE_MARKER_COUNT="$(grep -o " / $WRT_MARK-" "$STATUS_JS" 2>/dev/null | wc -l || true)"
+		FILE_MARKER_COUNT="${FILE_MARKER_COUNT//[[:space:]]/}"
+		MARKER_COUNT=$((MARKER_COUNT + FILE_MARKER_COUNT))
+	done
+	if [ "$MARKER_COUNT" -ne 1 ]; then
+		echo "ERROR: failed to add exactly one LuCI build marker under $STATUS_DIR" >&2
+		exit 1
+	fi
+	echo "LuCI build marker updated in $STATUS_DIR"
 else
-	echo "WARNING: $STATUS_JS not found — build date not added" >&2
+	echo "WARNING: $STATUS_DIR/10_system.js not found — build date not added" >&2
 fi
 
 # 设置 root 登录密码。空密码固件风险太高，CI 必须提供 WRT_PW secret。
