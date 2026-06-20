@@ -133,7 +133,6 @@ REQUIRE_PATTERN "$NET_FILE" "mtd_get_mac_ascii bdinfo fac_mac" "C8-660 network M
 REQUIRE_FILE "$MODEM_DST/usr/share/luci/menu.d/luci-app-c8modem.json"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/status.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/settings.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/wifi.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/at.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/cellscan.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-read.js"
