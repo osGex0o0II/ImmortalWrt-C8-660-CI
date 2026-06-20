@@ -23,10 +23,17 @@ modem_init(){
 
   ipcheckLOCKFILE="/tmp/ipcheck.lock"
   # Check if lockfile exists
-  if [ -f $ipcheckLOCKFILE ]; then
+  if [ -f "$ipcheckLOCKFILE" ]; then
       OLD_PID=$(cat $ipcheckLOCKFILE)
-      echo "$(date): Kill $OLD_PID" 
-      kill $OLD_PID
+      case "$OLD_PID" in
+          ''|*[!0-9]*)
+              echo "$(date): Ignore invalid ipcheck PID: $OLD_PID"
+          ;;
+          *)
+              echo "$(date): Kill $OLD_PID"
+              kill "$OLD_PID" 2>/dev/null || true
+          ;;
+      esac
   fi
     lock_file="/tmp/moduleInit.lock"
 
@@ -35,7 +42,7 @@ modem_init(){
     locked_pid=$(cat "$lock_file")
         if [ -n "$locked_pid" ]; then
             echo "Terminating existing moduleInit process (PID: $locked_pid)..." >>/tmp/moduleInit
-            kill "$locked_pid"
+            kill "$locked_pid" 2>/dev/null || true
             sleep 2  # 等待一段时间确保进程终止
         fi
     fi
@@ -58,19 +65,23 @@ modem_init(){
 }
 
 check_and_update_simsel() {
-  local sim_slot=$(sendat 2 "AT+QUIMSLOT?" | grep '+QUIMSLOT:' | awk '{print $2}')
   local sim_sel_file="/etc/simsel"
-  # 如果 sim_sel_file 不存在，则创建并写入外置卡 SIM 卡槽值，仅用于修正刷机和ui显示问题
+  local wan_mac
+  # 如果 sim_sel_file 不存在，则创建并写入外置卡 SIM 卡槽值，仅用于修正刷机和 UI 显示问题。
+  # UCI 中 modem.@ndis[0].simsel 的默认值为 0，即外置 SIM 卡。
   if [ ! -e "$sim_sel_file" ]; then
     printMsg "firstBoot"
     echo 1 > "$sim_sel_file"
     sendat 2 'AT+QMAP="mPDN_rule",0'
     sleep 5
-    sendat 2 'AT+QMAP="mPDN_rule",0,1,0,1,1,"FF:FF:FF:FF:FF:FF"'
+    wan_mac=$(uci -q get network.wan.macaddr)
+    case "$wan_mac" in
+      [0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f])
+        sendat 2 'AT+QMAP="mPDN_rule",0,1,0,1,1,"'"$wan_mac"'"'
+      ;;
+    esac
     sleep 8
     sendat 2 "AT+QUIMSLOT=1"
   fi
 }
-
-
 

@@ -1,0 +1,45 @@
+{
+	"admin/modem": {
+		"title": "蜂窝",
+		"order": 25,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/status": {
+		"title": "信号状态",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "c8modem/status"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/settings": {
+		"title": "模块设置",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "c8modem/settings"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
+	"admin/modem/at": {
+		"title": "调试工具",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "c8modem/at"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	}
+}

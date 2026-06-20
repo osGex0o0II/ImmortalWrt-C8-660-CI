@@ -12,11 +12,11 @@
 module("luci.controller.sms", package.seeall)
 
 function index()
-	entry({"admin", "modem", "readsms"},template("modem/readsms"),translate("Received Messages"), 20)
- 	entry({"admin", "modem", "sendsms"},template("modem/sendsms"),translate("Send Messages"), 30)
+	entry({"admin", "modem", "readsms"}, template("modem/readsms"), translate("短信接收"), 20)
+	entry({"admin", "modem", "sendsms"}, template("modem/sendsms"), translate("发送短信"), 30)
 	if nixio.fs.access("/etc/config/sms_tool") then
-        entry({"admin", "modem", "smsconfig"}, cbi("smsconfig"), translate("Configuration"), 50)
-    end
+		entry({"admin", "modem", "smsconfig"}, cbi("smsconfig"), translate("短信设置"), 50)
+	end
 	entry({"admin", "modem", "delete_one"}, call("delete_sms", smsindex), nil).leaf = true
 	entry({"admin", "modem", "delete_all"}, call("delete_all_sms"), nil).leaf = true
 	entry({"admin", "modem", "run_sms"}, call("sms"), nil).leaf = true

@@ -42,6 +42,11 @@ on:
         required: true
         default: "3"
         type: string
+      wrt_pw:
+        description: "Optional root password override for this build"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -54,7 +59,7 @@ env:
   WRT_SSID: NRadio-WiFi
   WRT_WORD: ${{ secrets.WRT_WORD || '' }}
   WRT_IP: 192.168.1.1
-  WRT_PW: ${{ secrets.WRT_PW || '' }}
+  WRT_PW: ${{ inputs.wrt_pw || secrets.WRT_PW || '' }}
   WRT_REPO: https://github.com/immortalwrt/immortalwrt
   WRT_BRANCH: ${{ inputs.wrt_branch || 'master' }}
   WRT_REF: ${{ inputs.wrt_ref || '' }}
@@ -157,6 +162,13 @@ jobs:
             tail -5 ./wrt/target/linux/mediatek/image/filogic.mk
             OK=false
           fi
+          if grep -q 'gmac1: mac@1' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts && grep -q 'phy-handle = <&phy6>;' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts; then
+            echo "OK: eth1 uses external 2.5G PHY"
+          else
+            echo "ERR: eth1/gmac1 is not bound to phy6"
+            awk '/gmac1: mac@1/,/};/' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts
+            OK=false
+          fi
           if ! $OK; then exit 1; fi
 
       - name: Check Scripts
@@ -229,7 +241,7 @@ jobs:
           echo "=== PWD ===" && pwd
           echo "=== WRT Root ===" && ls -la ./wrt/ | head -20
           echo "=== Package Dir ===" && ls -la ./wrt/package/ 2>&1 | head -20
-          echo "=== Feeds ===" && ls ./wrt/feeds/ 2>&1
+          echo "=== Feeds ===" && ls ./wrt/feeds/ 2>&1 || true
           echo "=== Scripts ===" && ls -la "$GITHUB_WORKSPACE/Scripts/"
           [ -f "$GITHUB_WORKSPACE/Scripts/Packages.sh" ] && echo "OK: Packages.sh EXISTS" || echo "ERR: Packages.sh MISSING"
           [ -x "$GITHUB_WORKSPACE/Scripts/Packages.sh" ] && echo "OK: Packages.sh EXECUTABLE" || echo "ERR: Packages.sh NOT EXECUTABLE"
@@ -527,6 +539,25 @@ jobs:
           require_rootfs 'usr/lib/lua/luci/view/modem/sendsms\.htm' 'legacy LuCI send SMS view'
           require_rootfs 'usr/lib/lua/luci/view/zmode/net_status\.htm' 'legacy LuCI modem status view'
           require_rootfs 'usr/lib/lua/luci/view/zmode/at\.htm' 'legacy LuCI AT command view'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-c8modem\.json' 'C8 modem LuCI JS menu'
+          require_rootfs 'usr/share/rpcd/acl\.d/luci-app-c8modem\.json' 'C8 modem LuCI ACL'
+          require_rootfs 'www/luci-static/resources/view/c8modem/status\.js' 'C8 modem JS status page'
+          require_rootfs 'www/luci-static/resources/view/c8modem/settings\.js' 'C8 modem JS settings page'
+          require_rootfs 'www/luci-static/resources/view/c8modem/at\.js' 'C8 modem JS AT page'
+
+          ROOT_SHADOW="$("$UNSQUASHFS" -cat "$ROOTFS" etc/shadow | sed -n 's/^root:\([^:]*\):.*/\1/p')"
+          if [ -z "$ROOT_SHADOW" ]; then
+            echo "::error::root password hash is empty in firmware rootfs"
+            exit 1
+          fi
+          echo "OK: root password hash is set"
+
+          MODEM_SIMSEL="$("$UNSQUASHFS" -cat "$ROOTFS" etc/config/modem | sed -n "s/^[[:space:]]*option[[:space:]]\\+simsel[[:space:]]\\+'\\([^']*\\)'.*/\\1/p" | head -1)"
+          if [ "$MODEM_SIMSEL" != "0" ]; then
+            echo "::error::modem default simsel should be 0 (external SIM), got '$MODEM_SIMSEL'"
+            exit 1
+          fi
+          echo "OK: modem default SIM is external"
 
       - name: Cleanup Old Releases
         if: ${{ inputs.publish_release }}
@@ -598,4 +629,8 @@ jobs:
         if: always()
         run: |
           cd ./wrt/
-          make clean -j$(nproc)
+          if [ -f .config ]; then
+            make clean -j$(nproc)
+          else
+            echo "Skip make clean: .config not generated"
+          fi

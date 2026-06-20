@@ -1,6 +1,6 @@
 config ndis
 	option enable '1'
-	option simsel '1'
+	option simsel '0'
 	option smode '0'
 	option bandlist_lte '0'
 	option bandlist_nr '0'

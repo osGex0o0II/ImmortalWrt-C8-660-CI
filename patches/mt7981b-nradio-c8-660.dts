@@ -202,12 +202,7 @@
 		compatible = "mediatek,eth-mac";
 		reg = <1>;
 		phy-mode = "2500base-x";
-
-		fixed-link {
-			speed = <2500>;
-			full-duplex;
-			pause;
-		};
+		phy-handle = <&phy6>;
 	};
 
 	mdio: mdio-bus {

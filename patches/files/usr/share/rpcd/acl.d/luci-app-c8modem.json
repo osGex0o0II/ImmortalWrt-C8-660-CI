@@ -1,0 +1,36 @@
+{
+	"luci-app-c8modem": {
+		"description": "Grant access to C8 modem status, settings and AT commands",
+		"read": {
+			"file": {
+				"/usr/share/modem/zinfo.sh": [ "exec" ],
+				"/usr/share/modem/atcmd.sh *": [ "exec" ],
+				"/usr/share/modem/delatcmd.sh": [ "exec" ],
+				"/tmp/cpe_cell.file": [ "read" ],
+				"/tmp/simcardstat": [ "read" ],
+				"/tmp/ipv6prefix": [ "read" ],
+				"/tmp/result.at": [ "read" ],
+				"/usr/bin/adb devices": [ "exec" ],
+				"/usr/bin/adb shell uptime": [ "exec" ],
+				"/bin/sendat 2 *": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "exec", "read" ]
+			},
+			"uci": [ "modem" ]
+		},
+		"write": {
+			"file": {
+				"/usr/share/modem/rm520n.sh": [ "exec" ],
+				"/usr/share/modem/atcmd.sh *": [ "exec" ],
+				"/usr/share/modem/delatcmd.sh": [ "exec" ],
+				"/usr/share/modem/luci-reinit.sh": [ "exec" ],
+				"/tmp/freq.run": [ "write" ]
+			},
+			"ubus": {
+				"file": [ "exec", "write" ]
+			},
+			"uci": [ "modem" ]
+		}
+	}
+}

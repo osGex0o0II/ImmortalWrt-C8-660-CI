@@ -27,9 +27,31 @@ fi
 # 添加编译日期标识
 STATUS_JS="./feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/10_system.js"
 if [ -f "$STATUS_JS" ]; then
+	perl -0pi -e "s/\\s*\\+\\s*\\(' \\/ ${WRT_MARK}-[^']+'\\)//g" "$STATUS_JS"
 	sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" "$STATUS_JS"
+	if [ "$(grep -o " / $WRT_MARK-" "$STATUS_JS" | wc -l)" -ne 1 ]; then
+		echo "ERROR: failed to add exactly one LuCI build marker to $STATUS_JS" >&2
+		exit 1
+	fi
 else
 	echo "WARNING: $STATUS_JS not found — build date not added" >&2
+fi
+
+# 设置 root 登录密码。空密码固件风险太高，CI 必须提供 WRT_PW secret。
+if [ -z "${WRT_PW:-}" ]; then
+	echo "ERROR: WRT_PW secret is required; refusing to build firmware with an empty root password." >&2
+	exit 1
+fi
+
+SHADOW_FILE="./package/base-files/files/etc/shadow"
+if [ -f "$SHADOW_FILE" ]; then
+	ROOT_HASH="$(printf '%s' "$WRT_PW" | openssl passwd -6 -stdin)"
+	sed -i "s|^root:[^:]*:|root:${ROOT_HASH}:|" "$SHADOW_FILE"
+	unset ROOT_HASH WRT_PW
+	echo "Root password hash injected"
+else
+	echo "ERROR: $SHADOW_FILE not found — root password NOT set." >&2
+	exit 1
 fi
 
 # 修改 WiFi 默认配置

@@ -120,7 +120,7 @@ REQUIRE_PATTERN "$LED_FILE" "ucidef_set_led_netdev \"wifi\" \"WIFI\"" "C8-660 LE
 # 注入 WiFi MAC 地址修复
 MAC_FILE="$WRT_DIR/target/linux/mediatek/filogic/base-files/etc/hotplug.d/ieee80211/11_fix_wifi_mac"
 INJECT_CASE "$MAC_FILE" "$PATCHES_DIR/11_fix_wifi_mac.snippet" "nradio,wt9103"
-REQUIRE_PATTERN "$MAC_FILE" "macaddr_setbit_la" "C8-660 WiFi MAC fix"
+REQUIRE_PATTERN "$MAC_FILE" 'macaddr_add "\$hw_mac" 3' "C8-660 WiFi MAC fix"
 
 # 注入网络接口定义（第 1 个 esac — mediatek_setup_interfaces）
 NET_FILE="$WRT_DIR/target/linux/mediatek/filogic/base-files/etc/board.d/02_network"
@@ -129,7 +129,11 @@ REQUIRE_PATTERN "$NET_FILE" "ucidef_set_interfaces_lan_wan \"lan1 lan2 lan3 lan4
 
 # 注入 MAC 地址分配（第 2 个 esac — mediatek_setup_macs）
 INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2
-REQUIRE_PATTERN "$NET_FILE" "mtd_get_mac_ascii bdinfo \"fac_mac \"" "C8-660 network MAC mapping"
+REQUIRE_PATTERN "$NET_FILE" "mtd_get_mac_ascii bdinfo fac_mac" "C8-660 network MAC mapping"
+REQUIRE_FILE "$MODEM_DST/usr/share/luci/menu.d/luci-app-c8modem.json"
+REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/status.js"
+REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/settings.js"
+REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/at.js"
 
 # 修复覆盖层脚本可执行权限
 LOG "Fixing executable permissions for overlay files"

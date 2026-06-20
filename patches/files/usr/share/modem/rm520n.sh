@@ -8,6 +8,81 @@
         logger -t "${PROGRAM}" "${msg}"
     } #日志输出调用API
 
+    . /lib/functions.sh 2>/dev/null || true
+    . /lib/functions/system.sh 2>/dev/null || true
+
+    valid_mac() {
+        local mac
+        mac=$(printf '%s' "$1" | tr 'A-F' 'a-f' | tr -d '\r\n')
+        case "$mac" in
+            00:00:00:00:00:00|ff:ff:ff:ff:ff:ff|'')
+                return 1
+            ;;
+        esac
+        echo "$mac" | grep -Eq '^([0-9a-f]{2}:){5}[0-9a-f]{2}$'
+    }
+
+    bdinfo_mac() {
+        local mac bddev
+        mac=$(mtd_get_mac_ascii bdinfo fac_mac 2>/dev/null | tr 'A-F' 'a-f' | tr -d '\r\n')
+        if valid_mac "$mac"; then
+            echo "$mac"
+            return 0
+        fi
+
+        mac=$(mtd_get_mac_ascii bdinfo "fac_mac " 2>/dev/null | tr 'A-F' 'a-f' | tr -d '\r\n')
+        if valid_mac "$mac"; then
+            echo "$mac"
+            return 0
+        fi
+
+        bddev=$(awk -F: '$0 ~ /"bdinfo"/ {print "/dev/" $1; exit}' /proc/mtd 2>/dev/null)
+        if [ -n "$bddev" ] && [ -r "$bddev" ]; then
+            mac=$(strings "$bddev" 2>/dev/null | sed -n 's/^fac_mac[[:space:]]*=[[:space:]]*\([0-9A-Fa-f:]\{17\}\).*/\1/p' | head -1 | tr 'A-F' 'a-f')
+            if valid_mac "$mac"; then
+                echo "$mac"
+                return 0
+            fi
+        fi
+
+        return 1
+    }
+
+    wan_mac() {
+        local base mac
+        base=$(bdinfo_mac)
+        if valid_mac "$base"; then
+            mac=$(macaddr_add "$base" 1 2>/dev/null | tr 'A-F' 'a-f' | tr -d '\r\n')
+            if valid_mac "$mac"; then
+                echo "$mac"
+                return 0
+            fi
+        fi
+
+        mac=$(uci -q get network.wan.macaddr 2>/dev/null | tr 'A-F' 'a-f' | tr -d '\r\n')
+        if valid_mac "$mac"; then
+            echo "$mac"
+            return 0
+        fi
+
+        mac=$(cat /sys/class/net/eth1/address 2>/dev/null | tr 'A-F' 'a-f' | tr -d '\r\n')
+        if valid_mac "$mac"; then
+            echo "$mac"
+            return 0
+        fi
+
+        return 1
+    }
+
+    apply_wan_mac() {
+        local mac="$1"
+        valid_mac "$mac" || return 1
+        uci -q set network.wan.macaddr="$mac"
+        uci -q set network.wan6.macaddr="$mac"
+        uci -q commit network
+        ip link set dev eth1 address "$mac" 2>/dev/null || true
+    }
+
     # 检查是否存在锁文件 @Icey
     lock_file="/tmp/rm520n.lock"
 
@@ -402,30 +477,37 @@
         macchk=0
         moduleSetChkMAX_RETRIES=5
         printMsg "Start Modem Hardware Check"
-        sendat 2 'at+qeth="rgmii","enable",1'
+        sendat 2 'AT+QCFG="USBNET",2'
+        sendat 2 'AT+QETH="eth_driver","r8125",1'
+        sendat 2 'AT+QETH="RGMII","ENABLE",1'
         while [ $macchk -lt 30 ]; do
-            mac_address=$(cat /sys/class/net/eth1/address 2>/dev/null | tr -d '\r\n')
-            [ -n "$mac_address" ] || mac_address=$(ifconfig eth1 2>/dev/null | awk '/HWaddr/ {print $5}' | tr -d '\r\n')
+            mac_address=$(wan_mac)
 
-            case "$mac_address" in
-            *:*:*:*:*:*)
+            if valid_mac "$mac_address"; then
+                apply_wan_mac "$mac_address"
                 printMsg "WAN MAC $mac_address"
                 success=true
                 break
-                ;;
-            *)
+            else
                 sleep 1
                 macchk=$((macchk + 1))
                 if [ $macchk -eq 30 ]; then
                     printMsg "获取WAN MAC失败!!"
                     exit 1
                 fi
-                ;;
-            esac
+            fi
         done
 
         while [ $moduleSetChkMAX_RETRIES -gt 0 ]; do
         success=true
+
+        usbnetStat=$(sendat 2 'AT+QCFG="USBNET"' | grep '+QCFG:' | awk -F, '{print $2}' | tr -d '\r\n')
+            printMsg "USBNET Status: $usbnetStat"
+            if [ "$usbnetStat" != "2" ]; then
+                printMsg "USBNET Status check failed."
+                sendat 2 'AT+QCFG="USBNET",2'
+                success=false
+            fi
         
         dataInterfaceChk=$(sendat 2 'AT+QCFG="data_interface"'|grep '+QCFG:'|awk -F \" {'print $3'}|tr -d '\r\n')
             printMsg "dataInterfaceChk: $dataInterfaceChk"
@@ -456,7 +538,15 @@
                 success=false
             fi
 
-            ipptMac=$(sendat 2 'at+qeth="ipptmac"'|grep '+QETH'|awk -F , {'print $2'}|tr -d '\r\n')
+            qmapwacStat=$(sendat 2 'AT+QMAPWAC?' | grep '+QMAPWAC' | awk -F ': ' '{print $2}' | tr -d '\r\n')
+            printMsg "QMAPWAC Status: $qmapwacStat"
+            if [ "$qmapwacStat" != "1" ]; then
+                printMsg "QMAPWAC Status check failed."
+                sendat 2 'AT+QMAPWAC=1'
+                success=false
+            fi
+
+            ipptMac=$(sendat 2 'at+qeth="ipptmac"'|grep '+QETH'|awk -F , {'print $2'}|tr 'A-F' 'a-f'|tr -d '\r\n')
             printMsg "ipptMac Status: $ipptMac"
             if [ "$ipptMac" != "$mac_address" ]; then
                 printMsg "ipptMac Status check failed."
@@ -478,7 +568,7 @@
                 printMsg "mpdnruleStat Status check failed."
                 sendat 2 'at+qmap="mpdn_rule",0'
                 sleep 5
-                sendat 2 'AT+QMAP="mPDN_rule",0,1,0,1,1,"FF:FF:FF:FF:FF:FF"'
+                sendat 2 'AT+QMAP="mPDN_rule",0,1,0,1,1,"'$mac_address'"'
                 sleep 8
                 success=false
             fi

@@ -4,10 +4,6 @@ local safe = require "luci.c8modem.safe"
 module("luci.controller.modem", package.seeall)
 
 function index()
-	entry({"admin", "modem"}, firstchild(), _("蜂窝"), 25).dependent=false
-	entry({"admin", "modem", "nets"}, template("zmode/net_status"), _("信号状态"), 97)
-	entry({"admin", "modem", "at"}, template("zmode/at"), _("调试工具"), 98)
-	entry({"admin", "modem", "modem"}, cbi("modem"), _("模块设置"), 99) 
 	entry({"admin", "modem", "get_csq"}, call("action_get_csq"))
 	entry({"admin", "modem", "send_atcmd"}, call("action_send_atcmd"))
 end

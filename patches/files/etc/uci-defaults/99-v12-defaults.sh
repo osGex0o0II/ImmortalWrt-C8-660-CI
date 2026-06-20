@@ -2,6 +2,9 @@
 # C8-660 默认配置
 # 克隆 V12 系统的 NTP、时区等设置，并修正 Open/mt76 与 V12/mtwifi 的差异。
 
+. /lib/functions.sh
+. /lib/functions/system.sh
+
 # 设置时区
 uci set system.@system[0].timezone='CST-8'
 uci set system.@system[0].zonename='Asia/Shanghai'
@@ -46,6 +49,14 @@ uci set firewall.@defaults[0].fullcone='0'
 # C8-660 的 5G 模块 RGMII 数据口实际是 eth1。
 uci -q set network.wan.device='eth1'
 uci -q set network.wan6.device='eth1'
+base_mac="$(mtd_get_mac_ascii bdinfo fac_mac 2>/dev/null)"
+case "$base_mac" in
+	[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f])
+		wan_mac="$(macaddr_add "$base_mac" 1)"
+		uci -q set network.wan.macaddr="$wan_mac"
+		uci -q set network.wan6.macaddr="$wan_mac"
+	;;
+esac
 for section in $(uci -q show network | sed -n "s/^\(network\.[^.]*\)=device$/\1/p"); do
 	[ "$(uci -q get "$section.name")" = "wan" ] && uci -q delete "$section"
 done

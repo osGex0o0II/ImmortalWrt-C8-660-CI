@@ -18,7 +18,8 @@ simsel= section:taboption("general", ListValue, "simsel", translate("SIM卡选�
 simsel:value("0", translate("外置SIM卡"))
 simsel:value("1", translate("内置SIM1"))
 simsel:value("2", translate("内置SIM2"))
-simsel.rmempty = true
+simsel.default = "0"
+simsel.rmempty = false
 
 pincode = section:taboption("general", Value, "pincode", translate("PIN密码"))
 pincode.default=""

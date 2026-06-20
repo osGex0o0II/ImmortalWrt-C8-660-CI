@@ -22,7 +22,7 @@ NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 | 项目 | 值 |
 |------|-----|
 | 登录地址 | 192.168.1.1 |
-| 登录密码 | （无） |
+| 登录密码 | 由 `WRT_PW` secret 设置 |
 | WiFi SSID | NRadio-WiFi |
 | WiFi 密码 | （无密码，开放） |
 | WiFi 加密 | 无（开放） |
@@ -204,7 +204,9 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 | `PKG_LOCK_partexp_COMMIT` | 锁定 luci-app-partexp 版本 | `deadbeef` |
 | `INIT_BUILD_EXPECTED_SHA256` | 可选覆盖仓库 pin 文件，用于临时固定构建环境脚本哈希 | `sha256sum` 输出 |
 | `WRT_WORD` (secret) | WiFi 密码（空=开放） | `MyPassword` |
-| `WRT_PW` (secret) | 登录密码（空=无密码） | `MyPassword` |
+| `WRT_PW` (secret) | root 登录密码，必填；为空时 CI 会拒绝构建 | `MyPassword` |
+
+手动验证构建时也可使用 workflow 的 `wrt_pw` 输入临时覆盖 root 密码；正式构建建议使用 `WRT_PW` secret。
 
 ## 使用流程
 
