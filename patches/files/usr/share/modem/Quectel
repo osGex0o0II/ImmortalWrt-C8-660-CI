@@ -50,45 +50,73 @@ scale_metric() {
 	clamp_percent "$score"
 }
 
+score_threshold() {
+	local value="$1"
+	shift
+
+	[ -n "$value" ] || return 1
+	while [ "$#" -ge 2 ]; do
+		if [ "$value" -ge "$1" ]; then
+			echo "$2"
+			return 0
+		fi
+		shift 2
+	done
+
+	echo 0
+}
+
 first_number() {
 	echo "$1" | grep -o -- "-[0-9]\{1,5\}\|[0-9]\{1,5\}" | head -1
 }
 
 update_signal_quality() {
-	local rsrp rsrq sinr rssi rsrp_score rsrq_score sinr_score rssi_score score parts
+	local rsrp rsrq sinr rssi rsrp_score rsrq_score sinr_score rssi_score score_sum weight_sum min_score avg_score composite
 
 	rsrp="$(first_number "$RSCP")"
 	rsrq="$(first_number "$ECIO")"
 	sinr="$(first_number "$SINR")"
 	rssi="$(first_number "$CSQ_RSSI")"
-	parts=0
-	score=0
+	weight_sum=0
+	score_sum=0
+	min_score=""
 
 	if [ -n "$rsrp" ] && [ "$rsrp" -lt 0 ]; then
-		rsrp_score="$(scale_metric "$rsrp" -120 -75)"
-		score=$((score + rsrp_score * 45))
-		parts=$((parts + 45))
+		rsrp_score="$(score_threshold "$rsrp" -65 100 -80 80 -90 60 -110 40 -120 20)"
+		score_sum=$((score_sum + rsrp_score * 35))
+		weight_sum=$((weight_sum + 35))
+		if [ -z "$min_score" ] || [ "$rsrp_score" -lt "$min_score" ]; then
+			min_score="$rsrp_score"
+		fi
 	fi
 
 	if [ -n "$rsrq" ] && [ "$rsrq" -lt 0 ]; then
-		rsrq_score="$(scale_metric "$rsrq" -20 -7)"
-		score=$((score + rsrq_score * 25))
-		parts=$((parts + 25))
+		rsrq_score="$(score_threshold "$rsrq" -8 100 -10 80 -12 70 -15 50 -20 30)"
+		score_sum=$((score_sum + rsrq_score * 35))
+		weight_sum=$((weight_sum + 35))
+		if [ -z "$min_score" ] || [ "$rsrq_score" -lt "$min_score" ]; then
+			min_score="$rsrq_score"
+		fi
 	fi
 
 	if [ -n "$sinr" ]; then
-		sinr_score="$(scale_metric "$sinr" -5 30)"
-		score=$((score + sinr_score * 30))
-		parts=$((parts + 30))
+		sinr_score="$(score_threshold "$sinr" 30 100 20 80 13 60 5 40 0 20)"
+		score_sum=$((score_sum + sinr_score * 30))
+		weight_sum=$((weight_sum + 30))
+		if [ -z "$min_score" ] || [ "$sinr_score" -lt "$min_score" ]; then
+			min_score="$sinr_score"
+		fi
 	fi
 
-	if [ "$parts" -gt 0 ]; then
-		CSQ_PER="$(clamp_percent $((score / parts)))%"
+	if [ "$weight_sum" -gt 0 ]; then
+		avg_score=$((score_sum / weight_sum))
+		composite=$(((min_score * 70 + avg_score * 30) / 100))
+		CSQ_PER="$(clamp_percent "$composite")%"
 		return
 	fi
 
 	if [ -n "$rssi" ] && [ "$rssi" -lt 0 ]; then
-		rssi_score="$(scale_metric "$rssi" -113 -51)"
+		rssi_score="$(score_threshold "$rssi" -65 100 -75 80 -85 60 -95 40 -105 20)"
 		CSQ_PER="$(clamp_percent "$rssi_score")%"
 	fi
 }

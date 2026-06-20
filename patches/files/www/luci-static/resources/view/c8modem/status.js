@@ -104,15 +104,32 @@ function gradePercent(value, ranges) {
 }
 
 function compositeSignal(data) {
-	const grades = [
-		gradePercent(numberValue(data.rscp), [ [ -75, 100 ], [ -85, 80 ], [ -95, 60 ], [ -105, 40 ], [ -115, 20 ] ]),
-		gradePercent(numberValue(data.rsrq), [ [ -8, 100 ], [ -10, 80 ], [ -12, 60 ], [ -15, 40 ], [ -18, 20 ] ]),
-		gradePercent(numberValue(data.sinr), [ [ 25, 100 ], [ 20, 80 ], [ 13, 60 ], [ 5, 40 ], [ 0, 20 ] ])
-	].filter(function(value) {
-		return value != null;
+	const reported = numberValue(data.per);
+	if (reported != null)
+		return clamp(Math.round(reported), 0, 100);
+
+	const metrics = [
+		{ score: gradePercent(numberValue(data.rscp), [ [ -65, 100 ], [ -80, 80 ], [ -90, 60 ], [ -110, 40 ], [ -120, 20 ] ]), weight: 35 },
+		{ score: gradePercent(numberValue(data.rsrq), [ [ -8, 100 ], [ -10, 80 ], [ -12, 70 ], [ -15, 50 ], [ -20, 30 ] ]), weight: 35 },
+		{ score: gradePercent(numberValue(data.sinr), [ [ 30, 100 ], [ 20, 80 ], [ 13, 60 ], [ 5, 40 ], [ 0, 20 ] ]), weight: 30 }
+	].filter(function(metric) {
+		return metric.score != null;
 	});
 
-	return grades.length ? Math.min.apply(Math, grades) : null;
+	if (!metrics.length)
+		return null;
+
+	let sum = 0;
+	let weight = 0;
+	let floor = 100;
+
+	metrics.forEach(function(metric) {
+		sum += metric.score * metric.weight;
+		weight += metric.weight;
+		floor = Math.min(floor, metric.score);
+	});
+
+	return Math.round((floor * 70 + (sum / weight) * 30) / 100);
 }
 
 function progressbar(percent, label) {
@@ -130,10 +147,10 @@ function signalRows(data) {
 	const composite = compositeSignal(data || {});
 	const rows = [
 		[ _('综合质量'), composite, composite == null ? '-' : '%d%%'.format(composite) ],
-		[ _('RSRP 接收功率'), percentFromRange(numberValue(data && data.rscp), -120, -70), clean(data && data.rscp) ],
-		[ _('RSRQ 接收质量'), percentFromRange(numberValue(data && data.rsrq), -20, -3), clean(data && data.rsrq) ],
-		[ _('SINR 信噪比'), percentFromRange(numberValue(data && data.sinr), 0, 30), clean(data && data.sinr) ],
-		[ _('RSSI 信号强度'), percentFromRange(numberValue(data && data.rssi), -95, -50), clean(data && data.rssi) ]
+		[ _('RSRP 接收功率'), gradePercent(numberValue(data && data.rscp), [ [ -65, 100 ], [ -80, 80 ], [ -90, 60 ], [ -110, 40 ], [ -120, 20 ] ]), clean(data && data.rscp) ],
+		[ _('RSRQ 接收质量'), gradePercent(numberValue(data && data.rsrq), [ [ -8, 100 ], [ -10, 80 ], [ -12, 70 ], [ -15, 50 ], [ -20, 30 ] ]), clean(data && data.rsrq) ],
+		[ _('SINR 信噪比'), gradePercent(numberValue(data && data.sinr), [ [ 30, 100 ], [ 20, 80 ], [ 13, 60 ], [ 5, 40 ], [ 0, 20 ] ]), clean(data && data.sinr) ],
+		[ _('RSSI 信号强度'), gradePercent(numberValue(data && data.rssi), [ [ -65, 100 ], [ -75, 80 ], [ -85, 60 ], [ -95, 40 ], [ -105, 20 ] ]), clean(data && data.rssi) ]
 	];
 
 	return rows.map(function(row) {
