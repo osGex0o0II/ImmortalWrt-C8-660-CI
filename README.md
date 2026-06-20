@@ -191,7 +191,7 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 | SQM/CAKE QoS | 智能队列管理，消除 bufferbloat，降低游戏/VoIP 延迟 | `Config/GENERAL.txt` |
 | 网络栈调优 | TCP/UDP buffer 扩大 + NAPI 轮询参数优化 | `Scripts/Settings.sh` |
 | 第三方包锁定 | 通过 `PKG_LOCK_<name>_COMMIT` 环境变量锁定包版本 | `Scripts/Packages.sh` |
-| SHA256 脚本校验 | `init_build_environment.sh` 可选完整性校验（`INIT_BUILD_EXPECTED_SHA256` secret） | `.github/workflows` |
+| SHA256 脚本校验 | `init_build_environment.sh` 使用仓库 pin 文件校验，并由定时工作流跟随上游更新 | `.github/init_build_environment.sha256`, `.github/workflows/update-init-build-sha.yml` |
 | 旧设备兼容 | `SUPPORTED_DEVICES nradio,wt9103` 支持旧 DTS 名称升级 | `patches/filogic-c8-660.mk` |
 | CCache 加速 | 编译缓存自动持久化，增量编译时间 -50% | `.github/workflows` |
 | 自定义扩展 | `Scripts/PRIVATE.sh` + `Config/PRIVATE.txt` 可选私有配置（gitignored） | `Scripts/`, `Config/` |
@@ -202,7 +202,7 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 |------|------|------|
 | `PKG_LOCK_aurora_COMMIT` | 锁定 luci-theme-aurora 版本 | `abc123def` |
 | `PKG_LOCK_partexp_COMMIT` | 锁定 luci-app-partexp 版本 | `deadbeef` |
-| `INIT_BUILD_EXPECTED_SHA256` | 校验构建环境脚本完整性 | `sha256sum` 输出 |
+| `INIT_BUILD_EXPECTED_SHA256` | 可选覆盖仓库 pin 文件，用于临时固定构建环境脚本哈希 | `sha256sum` 输出 |
 | `WRT_WORD` (secret) | WiFi 密码（空=开放） | `MyPassword` |
 | `WRT_PW` (secret) | 登录密码（空=无密码） | `MyPassword` |
 
@@ -233,7 +233,8 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 - CI 运行于 `ubuntu-latest` (GitHub Actions)，脚本针对 Linux (GNU sed/coreutils) 编写
 - 本地调试需在 Linux 环境或 WSL 中进行，macOS 的 BSD sed 语法不兼容
 - 第三方包可通过环境变量锁定版本，见 `Scripts/Packages.sh` 注释
-- `init_build_environment.sh` 可通过 `INIT_BUILD_EXPECTED_SHA256` secret 校验完整性
+- `init_build_environment.sh` 默认通过 `.github/init_build_environment.sha256` 校验完整性；`Update Init Build SHA` 工作流会定时跟随上游更新该 pin 文件
+- 如需临时强制固定哈希，可设置 `INIT_BUILD_EXPECTED_SHA256` secret 覆盖仓库 pin
 
 ## 目录结构
 

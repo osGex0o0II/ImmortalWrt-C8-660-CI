@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2026 VIKINGYFY
+
+name: Update Init Build SHA
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 20 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    name: update-init-build-sha
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Projects
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Refresh pinned SHA256
+        run: |
+          set -euo pipefail
+
+          PIN_FILE=".github/init_build_environment.sha256"
+          URL="https://build-scripts.immortalwrt.org/init_build_environment.sh"
+
+          curl -fsSL --retry 3 "$URL" -o /tmp/init_build_env.sh
+          sha256sum /tmp/init_build_env.sh | cut -d' ' -f1 > "$PIN_FILE"
+
+          echo "Pinned SHA256: $(cat "$PIN_FILE")"
+
+      - name: Commit changes
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- .github/init_build_environment.sha256; then
+            echo "No init_build_environment.sh SHA256 change"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/init_build_environment.sha256
+          git commit -m "ci: update init build environment sha"
+          git push origin HEAD:main
