@@ -17,6 +17,7 @@ define Device/nradio_wt9103
 	comgt comgt-ncm chat usb-modeswitch \
 	ttyd luci-app-ttyd \
 	miniupnpd luci-app-upnp \
+	zerotier luci-app-zerotier \
 	socat \
 	etherwake luci-app-wol \
 	luci-proto-3g \

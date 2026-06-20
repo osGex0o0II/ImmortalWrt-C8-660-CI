@@ -483,7 +483,7 @@ jobs:
               echo "OK: $desc"
             else
               echo "::error::Missing $desc ($pattern)"
-              grep -Ei 'mt76|mt7915|mt7981|mac80211|cfg80211|qmi|sms|sendat|modem|luci|wireless|firewall|aurora|partexp|ttyd|upnp|wol' "$ROOTFS_LIST" | tail -120 || true
+              grep -Ei 'mt76|mt7915|mt7981|mac80211|cfg80211|qmi|sms|sendat|modem|luci|wireless|firewall|aurora|partexp|ttyd|upnp|wol|zerotier' "$ROOTFS_LIST" | tail -120 || true
               exit 1
             fi
           }
@@ -530,6 +530,10 @@ jobs:
           require_rootfs 'usr/share/luci/menu\.d/luci-app-ttyd\.json' 'LuCI ttyd app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-zerotier\.json' 'LuCI ZeroTier app'
+          require_rootfs 'www/luci-static/resources/view/zerotier/config\.js' 'LuCI ZeroTier config page'
+          require_rootfs 'etc/init\.d/zerotier' 'ZeroTier init service'
+          require_rootfs 'usr/bin/zerotier-one' 'ZeroTier daemon'
           require_rootfs 'usr/bin/cellscan\.sh' 'C8 base station scan helper'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-c8modem\.json' 'C8 modem LuCI JS menu'
           require_rootfs 'usr/share/rpcd/acl\.d/luci-app-c8modem\.json' 'C8 modem LuCI ACL'
