@@ -158,39 +158,44 @@ function clientRows(radios) {
 	});
 }
 
+function asRows(rows) {
+	return Array.isArray(rows) ? rows : [ rows ];
+}
+
 function renderContent(radios) {
+	const radioTableRows = [
+		E('tr', { 'class': 'tr table-titles' }, [
+			E('th', { 'class': 'th left' }, _('接口')),
+			E('th', { 'class': 'th left' }, _('SSID')),
+			E('th', { 'class': 'th left' }, _('模式')),
+			E('th', { 'class': 'th left' }, _('信道')),
+			E('th', { 'class': 'th left' }, _('带宽')),
+			E('th', { 'class': 'th left' }, _('发射功率')),
+			E('th', { 'class': 'th left' }, _('链路质量')),
+			E('th', { 'class': 'th left' }, _('接口信号'))
+		])
+	].concat(asRows(radioRows(radios || [])));
+	const clientTableRows = [
+		E('tr', { 'class': 'tr table-titles' }, [
+			E('th', { 'class': 'th left' }, _('接口')),
+			E('th', { 'class': 'th left' }, _('MAC')),
+			E('th', { 'class': 'th left' }, _('信号')),
+			E('th', { 'class': 'th left' }, _('噪声')),
+			E('th', { 'class': 'th left' }, _('SNR')),
+			E('th', { 'class': 'th left' }, _('质量')),
+			E('th', { 'class': 'th left' }, _('速率'))
+		])
+	].concat(asRows(clientRows(radios || [])));
+
 	return E('div', { 'class': 'cbi-map' }, [
 		E('h2', _('无线状态')),
 		E('fieldset', { 'class': 'cbi-section' }, [
 			E('legend', {}, _('无线接口')),
-			E('table', { 'class': 'table' }, [
-				E('tr', { 'class': 'tr table-titles' }, [
-					E('th', { 'class': 'th left' }, _('接口')),
-					E('th', { 'class': 'th left' }, _('SSID')),
-					E('th', { 'class': 'th left' }, _('模式')),
-					E('th', { 'class': 'th left' }, _('信道')),
-					E('th', { 'class': 'th left' }, _('带宽')),
-					E('th', { 'class': 'th left' }, _('发射功率')),
-					E('th', { 'class': 'th left' }, _('链路质量')),
-					E('th', { 'class': 'th left' }, _('接口信号'))
-				]),
-				radioRows(radios || [])
-			])
+			E('table', { 'class': 'table' }, radioTableRows)
 		]),
 		E('fieldset', { 'class': 'cbi-section' }, [
 			E('legend', {}, _('客户端信号')),
-			E('table', { 'class': 'table' }, [
-				E('tr', { 'class': 'tr table-titles' }, [
-					E('th', { 'class': 'th left' }, _('接口')),
-					E('th', { 'class': 'th left' }, _('MAC')),
-					E('th', { 'class': 'th left' }, _('信号')),
-					E('th', { 'class': 'th left' }, _('噪声')),
-					E('th', { 'class': 'th left' }, _('SNR')),
-					E('th', { 'class': 'th left' }, _('质量')),
-					E('th', { 'class': 'th left' }, _('速率'))
-				]),
-				clientRows(radios || [])
-			])
+			E('table', { 'class': 'table' }, clientTableRows)
 		])
 	]);
 }

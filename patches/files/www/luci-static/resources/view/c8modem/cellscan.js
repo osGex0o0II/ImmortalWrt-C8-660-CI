@@ -68,8 +68,24 @@ function renderRows(cells) {
 	});
 }
 
+function asRows(rows) {
+	return Array.isArray(rows) ? rows : [ rows ];
+}
+
 function renderContent(data) {
 	data = data || {};
+	const tableRows = [
+		E('tr', { 'class': 'tr table-titles' }, [
+			E('th', { 'class': 'th left' }, _('制式')),
+			E('th', { 'class': 'th left' }, _('运营商')),
+			E('th', { 'class': 'th left' }, _('MCC/MNC')),
+			E('th', { 'class': 'th left' }, _('频点')),
+			E('th', { 'class': 'th left' }, _('PCI')),
+			E('th', { 'class': 'th left' }, _('信号')),
+			E('th', { 'class': 'th left' }, _('操作')),
+			E('th', { 'class': 'th left' }, _('原始数据'))
+		])
+	].concat(asRows(renderRows(data.cells || [])));
 
 	return E('div', { 'class': 'cbi-map' }, [
 		E('h2', _('基站扫描')),
@@ -106,19 +122,7 @@ function renderContent(data) {
 					click: readAndRedraw
 				}, _('刷新结果'))
 			]),
-			E('table', { 'class': 'table' }, [
-				E('tr', { 'class': 'tr table-titles' }, [
-					E('th', { 'class': 'th left' }, _('制式')),
-					E('th', { 'class': 'th left' }, _('运营商')),
-					E('th', { 'class': 'th left' }, _('MCC/MNC')),
-					E('th', { 'class': 'th left' }, _('频点')),
-					E('th', { 'class': 'th left' }, _('PCI')),
-					E('th', { 'class': 'th left' }, _('信号')),
-					E('th', { 'class': 'th left' }, _('操作')),
-					E('th', { 'class': 'th left' }, _('原始数据'))
-				]),
-				renderRows(data.cells || [])
-			])
+			E('table', { 'class': 'table' }, tableRows)
 		])
 	]);
 }

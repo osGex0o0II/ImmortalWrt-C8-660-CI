@@ -146,6 +146,10 @@ function statusNodes(status, shown, raw) {
 	]);
 }
 
+function asRows(rows) {
+	return Array.isArray(rows) ? rows : [ rows ];
+}
+
 return view.extend({
 	load: function() {
 		return Promise.all([
@@ -202,6 +206,15 @@ return view.extend({
 
 		function renderContent() {
 			const rows = visibleMessages();
+			const tableRows = [
+				E('tr', { 'class': 'tr table-titles' }, [
+					E('th', { 'class': 'th left' }, ''),
+					E('th', { 'class': 'th left' }, _('索引')),
+					E('th', { 'class': 'th left' }, _('发件人')),
+					E('th', { 'class': 'th left' }, _('接收时间')),
+					E('th', { 'class': 'th left' }, _('内容'))
+				])
+			].concat(asRows(renderRows(rows)));
 
 			return E('div', { 'class': 'cbi-map' }, [
 				E('h2', _('短信接收')),
@@ -230,16 +243,7 @@ return view.extend({
 							click: deleteSelected
 						}, _('删除选中'))
 					]),
-					E('table', { 'class': 'table' }, [
-						E('tr', { 'class': 'tr table-titles' }, [
-							E('th', { 'class': 'th left' }, ''),
-							E('th', { 'class': 'th left' }, _('索引')),
-							E('th', { 'class': 'th left' }, _('发件人')),
-							E('th', { 'class': 'th left' }, _('接收时间')),
-							E('th', { 'class': 'th left' }, _('内容'))
-						]),
-						renderRows(rows)
-					])
+					E('table', { 'class': 'table' }, tableRows)
 				])
 			]);
 		}
