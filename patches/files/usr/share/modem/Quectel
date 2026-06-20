@@ -34,8 +34,10 @@ All_CSQ()
 	OX=$( sendat $ATPORT "AT+CSQ" |grep "+CSQ:")
 	OX=$(echo $OX | tr 'a-z' 'A-Z')
 	CSQ=$(echo "$OX" | grep -o "+CSQ: [0-9]\{1,2\}" | grep -o "[0-9]\{1,2\}")
-	if [ $CSQ = "99" ]; then
+	if [ -z "$CSQ" ] || [ "$CSQ" = "99" ]; then
 		CSQ=""
+	elif [ "$CSQ" -gt 31 ]; then
+		CSQ="31"
 	fi
 	if [ -n "$CSQ" ]; then
 		CSQ_PER=$(($CSQ * 100/31))"%"

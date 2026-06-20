@@ -1,11 +1,18 @@
 #!/bin/sh 
 
 LOCK_FILE="/tmp/zinfo.lock"
-if [ -e "$LOCK_FILE" ]; then
-    echo "zinfo互斥" >> /tmp/rm520n.log
-    exit 1
-fi
-touch "$LOCK_FILE"
+LOCK_WAIT=0
+
+[ -f "$LOCK_FILE" ] && rm -f "$LOCK_FILE"
+while ! mkdir "$LOCK_FILE" 2>/dev/null; do
+    if [ "$LOCK_WAIT" -ge 15 ]; then
+        echo "zinfo互斥超时" >> /tmp/rm520n.log
+        exit 1
+    fi
+    sleep 1
+    LOCK_WAIT=$((LOCK_WAIT + 1))
+done
+trap 'rm -rf "$LOCK_FILE"' EXIT INT TERM
 . /usr/share/modem/Quectel
 
 sim_sel=$(cat /tmp/sim_sel)
@@ -30,14 +37,20 @@ esac
 SIM_Check=$(sendat $ATPORT AT+CPIN?)
 if [ -z "$(echo "$SIM_Check" | grep "READY")" ]; then
     {    
-    echo `sendat 2 "ATI" | sed -n '3p'|sed 's/\r$//'` #'RM520N-CN'
     echo `sendat 2 "ATI" | sed -n '2p'|sed 's/\r$//'` #'Quectel'
+    echo `sendat 2 "ATI" | sed -n '3p'|sed 's/\r$//'` #'RM520N-CN'
+    echo `sendat 2 "ATI" | sed -n '4p' | cut -d ':' -f2 | tr -d ' '|sed 's/\r$//'`
+    echo ''
     echo `date "+%Y-%m-%d %H:%M:%S"`
+    echo "$SIMCard"
+    echo ''
+    echo ''
+    echo ''
+    echo ''
     echo ''
     echo "未检测到SIM卡!"
     printf "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
     } > /tmp/cpe_cell.file
-    rm -rf "$LOCK_FILE"
     exit 0
 fi
 
@@ -113,4 +126,3 @@ case $COPS in
         ;;
 esac
 OutData
-rm -rf "$LOCK_FILE"

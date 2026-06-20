@@ -508,6 +508,7 @@ jobs:
           require_rootfs 'lib/modules/.*/usb_wwan\.ko' 'USB WWAN serial module'
           require_rootfs 'sbin/uqmi' 'uqmi command'
           require_rootfs 'usr/bin/sms_tool' 'sms_tool command'
+          require_rootfs 'usr/bin/rsrp2rssi' 'RSRP to RSSI helper'
           require_rootfs 'bin/sendat' 'sendat command'
           require_rootfs 'etc/init\.d/modeminit' 'modem init service'
           require_rootfs 'etc/uci-defaults/99-v12-defaults\.sh' 'C8 first-boot defaults'
