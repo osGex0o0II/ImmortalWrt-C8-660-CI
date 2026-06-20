@@ -11,6 +11,8 @@ config ndis
 	option cellid '0'
 	option freqlock '0'
 	option autofreqlock '0'
+	option enable_native_ipv6 '0'
+	option adbunlockkey '0'
 	option pingen '0'
 	option pingaddr '119.29.29.29'
 	option count '5'

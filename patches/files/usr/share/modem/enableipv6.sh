@@ -50,10 +50,10 @@ ipv6_uci_set() {
     # /etc/config/network
     uci set network.wan6.reqaddress='try'
     uci set network.wan6.reqprefix='auto'
-    uci del network.globals.ula_prefix
-    uci del dhcp.lan.ra_slaac
+    uci -q del network.globals.ula_prefix
+    uci -q del dhcp.lan.ra_slaac
     uci set dhcp.lan.ra='relay'
-    uci del dhcp.lan.ra_flags
+    uci -q del dhcp.lan.ra_flags
     uci add_list dhcp.lan.ra_flags='none'
     uci set dhcp.lan.dhcpv6='relay'
     uci set dhcp.lan.ndp='relay'
@@ -62,6 +62,12 @@ ipv6_uci_set() {
 
 route_walker() {
     ipv6=$(sendat 2 'at+qmap="wwan"' | grep IPV6 | awk -F\" '{print $6}')
+    if ! echo "$ipv6" | grep -Eq '^[0-9A-Fa-f:]+:[0-9A-Fa-f:]+$'; then
+        printMsg "Invalid IPV6 address from module: $ipv6"
+        echo "未获取到有效IPV6地址，请稍后重试" >/tmp/ipv6prefix
+        return 1
+    fi
+
     ipv6prefix=$(echo $ipv6 | cut -d: -f1-4)
     ipv6prefix="${ipv6prefix}::/64"
 

@@ -22,7 +22,7 @@ define Device/nradio_wt9103
 	luci-proto-3g \
 	tcpdump ethtool \
 	irqbalance \
-	nano unzip wget-ssl
+	adb nano unzip wget-ssl
   UBINIZE_OPTS := -E 5
   BLOCKSIZE := 128k
   PAGESIZE := 2048

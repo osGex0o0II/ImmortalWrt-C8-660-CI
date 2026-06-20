@@ -69,6 +69,8 @@ uci -q get modem.@ndis[0].earfcn >/dev/null || uci -q set modem.@ndis[0].earfcn=
 uci -q get modem.@ndis[0].cellid >/dev/null || uci -q set modem.@ndis[0].cellid='0'
 uci -q get modem.@ndis[0].freqlock >/dev/null || uci -q set modem.@ndis[0].freqlock='0'
 uci -q get modem.@ndis[0].autofreqlock >/dev/null || uci -q set modem.@ndis[0].autofreqlock='0'
+uci -q get modem.@ndis[0].enable_native_ipv6 >/dev/null || uci -q set modem.@ndis[0].enable_native_ipv6='0'
+uci -q get modem.@ndis[0].adbunlockkey >/dev/null || uci -q set modem.@ndis[0].adbunlockkey='0'
 
 # 提交更改
 uci commit system

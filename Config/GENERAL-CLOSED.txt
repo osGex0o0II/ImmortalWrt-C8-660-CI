@@ -33,6 +33,7 @@ CONFIG_PACKAGE_kmod-sched-cake=y
 CONFIG_PACKAGE_kmod-sched-core=y
 
 # --- 系统工具: 诊断 ---
+CONFIG_PACKAGE_adb=y
 CONFIG_PACKAGE_blkid=y
 CONFIG_PACKAGE_cpufreq=y
 CONFIG_PACKAGE_curl=y
