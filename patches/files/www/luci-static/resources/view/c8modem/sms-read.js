@@ -152,17 +152,15 @@ function mergeMessages(messages, direction) {
 	});
 }
 
-function statusNodes(status, shown) {
-	const used = +(status && status.used) || 0;
-	const total = +(status && status.total) || 0;
-	const remain = Math.max(total - used, 0);
-	const storage = status && status.storage ? status.storage : '-';
+function statusNodes(shown, raw) {
+	const nodes = [
+		E('span', {}, _('收件箱：%d 条短信').format(shown))
+	];
 
-	return E('div', { 'class': 'sms-stats' }, [
-		E('span', {}, _('收件箱：%d 条').format(shown)),
-		E('br'),
-		E('span', {}, _('存储 %s：剩余 %d / 上限 %d').format(storage, remain, total))
-	]);
+	if (raw > shown)
+		nodes.push(E('br'), E('span', { 'class': 'text-muted' }, _('长短信已自动合并显示')));
+
+	return E('div', { 'class': 'sms-stats' }, nodes);
 }
 
 function asRows(rows) {
@@ -240,7 +238,7 @@ return view.extend({
 				E('fieldset', { 'class': 'cbi-section' }, [
 					E('div', { 'class': 'cbi-value' }, [
 						E('label', { 'class': 'cbi-value-title' }, _('短信统计')),
-						E('div', { 'class': 'cbi-value-field' }, statusNodes(data.status, rows.length))
+						E('div', { 'class': 'cbi-value-field' }, statusNodes(rows.length, messages.length))
 					]),
 					E('div', { 'class': 'cbi-page-actions' }, [
 						E('button', {
