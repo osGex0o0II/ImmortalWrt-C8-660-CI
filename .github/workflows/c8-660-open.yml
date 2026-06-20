@@ -556,7 +556,18 @@ jobs:
           body: |
             ## NRadio C8-660 (MT7981) ImmortalWrt 固件
 
-            ### 刷机说明
+            ### 先选文件
+
+            | 场景 | 下载文件 | 说明 |
+            |------|----------|------|
+            | 首次从原厂 NROS 刷入 | `immortalwrt-c8-660-factory.bin` | 通过 U-Boot TFTP 写入，会替换原厂系统 |
+            | 已运行 OpenWrt/ImmortalWrt 后升级 | `immortalwrt-c8-660-sysupgrade.bin` | 在 LuCI 备份/升级页面刷写 |
+            | 临时启动、调试、救援验证 | `immortalwrt-c8-660-initramfs.bin` | 内存启动镜像，不直接写入 Flash |
+            | 校验下载完整性 | `sha256sums` | 下载后先核对 SHA256 |
+            | 查看内置包列表 | `immortalwrt-mediatek-filogic.manifest` | 排错、复现构建、核对插件时使用 |
+            | 引导链/救砖参考 | `mt7981-bl2.bin` | 高级恢复文件，普通刷机不要使用 |
+
+            ### 刷机路径
 
             **首次刷机（从原厂 NROS 刷入）：**
             1. 按住 Reset 按键上电，进入 U-Boot TFTP 恢复模式
@@ -566,6 +577,16 @@ jobs:
 
             **升级（同版本 OpenWrt）：**
             - LuCI → 系统 → 备份/升级 → 刷写固件 → 选择 `immortalwrt-c8-660-sysupgrade.bin`
+
+            ### 下载后校验
+
+            刷写前建议校验固件完整性：
+
+            ```sh
+            sha256sum -c sha256sums
+            ```
+
+            如果只下载了单个固件文件，也可以打开 `sha256sums`，手动核对对应文件的 SHA256。
 
             ### 固件信息
 
@@ -579,7 +600,12 @@ jobs:
             | WiFi | ${{env.WRT_SSID}} / ${{env.WRT_WORD_DISPLAY}} |
             | 插件 | ${{env.WRT_LIST}} |
 
-            **注意：** 登录 IP 已从原厂 192.168.66.1 变更为 192.168.1.1。5G 模组（RM520N-CN）首次启动约需 60 秒完成初始化。
+            ### 重要提示
+
+            - 登录 IP 已从原厂 `192.168.66.1` 变更为 `${{env.WRT_IP}}`。
+            - 5G 模组（RM520N-CN）首次启动约需 60 秒完成初始化。
+            - `mt7981-bl2.bin` 不用于日常刷机；只有明确知道自己在恢复引导链时才考虑使用。
+            - 从原厂系统首次刷入前，请备份 BL2 和 FIP 分区。
 
             > ⚠️ 本项目编译产物使用 mainline 内核（6.x），与 NRadio SDK 内核（5.4）引导链不兼容。刷机前请务必通过 U-Boot TFTP 模式备份 BL2 和 FIP 分区。刷机风险自担。
 
