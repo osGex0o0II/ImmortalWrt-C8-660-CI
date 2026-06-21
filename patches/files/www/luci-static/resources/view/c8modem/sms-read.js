@@ -152,15 +152,14 @@ function mergeMessages(messages, direction) {
 	});
 }
 
-function statusNodes(shown, raw) {
-	const nodes = [
-		E('span', {}, _('收件箱：%d 条短信').format(shown))
-	];
+function statusNodes(status, shown) {
+	const total = +(status && status.total) || 0;
 
-	if (raw > shown)
-		nodes.push(E('br'), E('span', { 'class': 'text-muted' }, _('长短信已自动合并显示')));
-
-	return E('div', { 'class': 'sms-stats' }, nodes);
+	return E('div', { 'class': 'sms-stats' }, [
+		E('span', {}, _('收件箱：%d 条短信').format(shown)),
+		E('br'),
+		E('span', {}, total ? _('最大可存储：%d 条短信').format(total) : _('最大可存储：未知'))
+	]);
 }
 
 function asRows(rows) {
@@ -187,6 +186,12 @@ return view.extend({
 
 		function visibleMessages() {
 			return mergeMessages(messages, 'Start');
+		}
+
+		function allSelected(rows) {
+			return rows.length > 0 && rows.every(function(msg) {
+				return selected[smsIndexes(msg.index).join(',')];
+			});
 		}
 
 		function renderRows(rows) {
@@ -224,6 +229,7 @@ return view.extend({
 
 		function renderContent() {
 			const rows = visibleMessages();
+			const checkedAll = allSelected(rows);
 			const tableRows = [
 				E('tr', { 'class': 'tr table-titles' }, [
 					E('th', { 'class': 'th left' }, ''),
@@ -238,13 +244,21 @@ return view.extend({
 				E('fieldset', { 'class': 'cbi-section' }, [
 					E('div', { 'class': 'cbi-value' }, [
 						E('label', { 'class': 'cbi-value-title' }, _('短信统计')),
-						E('div', { 'class': 'cbi-value-field' }, statusNodes(rows.length, messages.length))
+						E('div', { 'class': 'cbi-value-field' }, statusNodes(data.status, rows.length))
 					]),
 					E('div', { 'class': 'cbi-page-actions' }, [
 						E('button', {
 							'class': 'cbi-button cbi-button-apply',
 							click: refresh
 						}, _('刷新')),
+						' ',
+						E('button', {
+							'class': 'cbi-button cbi-button-neutral',
+							'disabled': rows.length ? null : 'disabled',
+							click: function() {
+								return toggleSelectAll(rows, checkedAll);
+							}
+						}, checkedAll ? _('取消全选') : _('全选')),
 						' ',
 						E('button', {
 							'class': 'cbi-button cbi-button-reset',
@@ -269,6 +283,20 @@ return view.extend({
 				selected = {};
 				redraw();
 			});
+		}
+
+		function toggleSelectAll(rows, checkedAll) {
+			selected = {};
+
+			if (!checkedAll)
+				rows.forEach(function(msg) {
+					const indexes = smsIndexes(msg.index).join(',');
+					if (indexes)
+						selected[indexes] = true;
+				});
+
+			redraw();
+			return Promise.resolve();
 		}
 
 		function deleteSelected() {
