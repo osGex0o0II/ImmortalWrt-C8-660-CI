@@ -551,6 +551,7 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/c8modem/cellscan\.js' 'C8 base station scan JS page'
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-read\.js' 'C8 SMS JS read page'
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-send\.js' 'C8 SMS JS send page'
+          require_rootfs 'www/luci-static/resources/view/c8modem/sms-forward\.js' 'C8 SMS JS forwarding page'
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-settings\.js' 'C8 SMS JS settings page'
           require_rootfs 'www/luci-static/resources/view/status(.*/)?10_system\.js' 'LuCI system status JS'
 

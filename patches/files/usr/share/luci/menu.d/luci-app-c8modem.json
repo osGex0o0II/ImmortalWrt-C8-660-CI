@@ -85,9 +85,20 @@
 			"acl": [ "luci-app-c8modem" ]
 		}
 	},
+	"admin/modem/sms/forward": {
+		"title": "短信转发",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "c8modem/sms-forward"
+		},
+		"depends": {
+			"acl": [ "luci-app-c8modem" ]
+		}
+	},
 	"admin/modem/sms/settings": {
 		"title": "短信设置",
-		"order": 30,
+		"order": 40,
 		"action": {
 			"type": "view",
 			"path": "c8modem/sms-settings"
