@@ -91,9 +91,10 @@ fi
 # 修改 WiFi 默认配置
 WIFI_SH="./target/linux/mediatek/filogic/base-files/etc/uci-defaults/99_set-wireless.sh"
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
+BASE_WIFI_SSID="${WRT_SSID:-NRadio}"
 if [ -f "$WIFI_SH" ]; then
 	# 修改 WiFi 名称
-	sed -i "s/BASE_SSID='.*'/BASE_SSID='$WRT_SSID'/g" "$WIFI_SH"
+	sed -i "s/BASE_SSID='.*'/BASE_SSID='$BASE_WIFI_SSID'/g" "$WIFI_SH"
 	if [ -n "$WRT_WORD" ]; then
 		sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" "$WIFI_SH"
 	else
@@ -101,7 +102,7 @@ if [ -f "$WIFI_SH" ]; then
 	fi
 elif [ -f "$WIFI_UC" ]; then
 	#修改WIFI名称
-	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" "$WIFI_UC"
+	sed -i "s/ssid='.*'/ssid='$BASE_WIFI_SSID'/g" "$WIFI_UC"
 	#修改WIFI地区
 	sed -i "s/country='.*'/country='CN'/g" "$WIFI_UC"
 	if [ -n "$WRT_WORD" ]; then

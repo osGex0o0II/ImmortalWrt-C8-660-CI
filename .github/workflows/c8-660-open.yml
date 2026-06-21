@@ -56,7 +56,7 @@ env:
   WRT_CONFIG: NRADIO-C8-660
   WRT_THEME: aurora
   WRT_NAME: NRadio-C8-660
-  WRT_SSID: NRadio-WiFi
+  WRT_SSID: NRadio
   WRT_WORD: ${{ secrets.WRT_WORD || '' }}
   WRT_IP: 192.168.1.1
   WRT_PW: ${{ inputs.wrt_pw || secrets.WRT_PW || '' }}

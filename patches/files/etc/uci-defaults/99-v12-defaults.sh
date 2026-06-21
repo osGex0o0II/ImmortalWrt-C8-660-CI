@@ -59,6 +59,17 @@ case "$base_mac" in
 		wan_mac="$(macaddr_add "$base_mac" 1)"
 		uci -q set network.wan.macaddr="$wan_mac"
 		uci -q set network.wan6.macaddr="$wan_mac"
+
+		ssid_suffix="$(printf '%s' "$base_mac" | tr -d ':' | sed 's/^.*\(....\)$/\1/' | tr 'a-f' 'A-F')"
+		default_ssid="NRadio-$ssid_suffix"
+		for wifi_iface in $(uci -q show wireless | sed -n "s/^\(wireless\.[^.]*\)=wifi-iface$/\1/p"); do
+			current_ssid="$(uci -q get "$wifi_iface.ssid")"
+			case "$current_ssid" in
+				''|ImmortalWrt|ImmortalWriFi|OpenWrt|NRadio|NRadio-WiFi|NRadio-[Ww][Ii][Ff][Ii]|NRadio-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f])
+					uci -q set "$wifi_iface.ssid=$default_ssid"
+				;;
+			esac
+		done
 	;;
 esac
 for section in $(uci -q show network | sed -n "s/^\(network\.[^.]*\)=device$/\1/p"); do
@@ -82,5 +93,6 @@ uci commit luci
 uci commit firewall
 uci commit network
 uci commit modem
+uci commit wireless
 
 exit 0
