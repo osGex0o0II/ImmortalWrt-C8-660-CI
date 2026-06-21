@@ -38,7 +38,9 @@ CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_adb=y
 CONFIG_PACKAGE_blkid=y
 CONFIG_PACKAGE_cpufreq=y
+CONFIG_PACKAGE_bash=y
 CONFIG_PACKAGE_curl=y
+CONFIG_PACKAGE_jq=y
 CONFIG_PACKAGE_dmesg=y
 CONFIG_PACKAGE_fdisk=y
 CONFIG_PACKAGE_htop=y
@@ -70,6 +72,7 @@ CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-app-wol=y
 CONFIG_PACKAGE_luci-app-zerotier=y
 CONFIG_PACKAGE_luci-app-log=y
+CONFIG_PACKAGE_luci-app-wechatpush=y
 CONFIG_PACKAGE_luci-proto-3g=y
 CONFIG_PACKAGE_luci-proto-qmi=y
 
@@ -80,6 +83,10 @@ CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-wol-zh-cn=y
 CONFIG_PACKAGE_luci-i18n-zerotier-zh-cn=y
+CONFIG_PACKAGE_luci-i18n-wechatpush-zh-cn=y
 
 # --- 禁用不需要的默认插件 ---
 CONFIG_PACKAGE_luci-app-attendedsysupgrade=n
+CONFIG_PACKAGE_luci-app-wechatpush_Enable_Traffic_Monitoring=n
+CONFIG_PACKAGE_luci-app-wechatpush_Local_Disk_Information_Detection=n
+CONFIG_PACKAGE_luci-app-wechatpush_Host_Information_Detection=n

@@ -122,6 +122,9 @@ fi
 
 # 插件
 UPDATE_PACKAGE "luci-app-partexp" "sirpdboy/luci-app-partexp" "main" "" "partexp" "luci-app-partexp" "partexp"
+if grep -qs '^CONFIG_PACKAGE_luci-app-wechatpush=y$' "${CONFIG_FILES[@]}"; then
+	UPDATE_PACKAGE "luci-app-wechatpush" "tty228/luci-app-wechatpush" "master" "" "wechatpush" "" "wechatpush"
+fi
 
 #引入私有扩展脚本
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then

@@ -1,0 +1,401 @@
+#!/bin/sh
+
+STATE_DIR="/tmp/c8-sms-forward"
+STATE_FILE="$STATE_DIR/sent.keys"
+PENDING_FILE="$STATE_DIR/pending.json"
+LOG_FILE="/tmp/c8-sms-forward.log"
+
+log_msg() {
+	mkdir -p "$STATE_DIR"
+	printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_FILE"
+}
+
+uci_get() {
+	uci -q get "$1" 2>/dev/null || printf '%s' "${2:-}"
+}
+
+sms_cfg() {
+	STORAGE="$(uci_get sms_tool.general.storage ME)"
+	PORT="$(uci_get sms_tool.general.readport /dev/ttyUSB2)"
+	FORWARD_ENABLE="$(uci_get sms_tool.general.forward_enable 0)"
+	FORWARD_BACKEND="$(uci_get sms_tool.general.forward_backend wechatpush)"
+	FORWARD_COMPLETE_ONLY="$(uci_get sms_tool.general.forward_complete_only 1)"
+	FORWARD_DELETE_AFTER="$(uci_get sms_tool.general.forward_delete_after 0)"
+	FORWARD_CHANNEL="$(uci_get sms_tool.general.forward_channel auto)"
+	FORWARD_DIY_URL="$(uci_get sms_tool.general.forward_diy_url '')"
+}
+
+require_cmd() {
+	command -v "$1" >/dev/null 2>&1 || {
+		log_msg "ERROR missing command: $1"
+		return 1
+	}
+}
+
+trim_state() {
+	[ -f "$STATE_FILE" ] || return 0
+	tail -n 200 "$STATE_FILE" > "$STATE_FILE.tmp" 2>/dev/null && mv "$STATE_FILE.tmp" "$STATE_FILE"
+}
+
+already_sent() {
+	[ -n "$1" ] || return 1
+	[ -f "$STATE_FILE" ] && grep -Fxq "$1" "$STATE_FILE"
+}
+
+mark_sent() {
+	[ -n "$1" ] || return 0
+	mkdir -p "$STATE_DIR"
+	printf '%s\n' "$1" >> "$STATE_FILE"
+	trim_state
+}
+
+delete_indexes() {
+	local indexes="$1" index
+
+	[ "$FORWARD_DELETE_AFTER" = "1" ] || return 0
+	printf '%s' "$indexes" | tr ',' '\n' | sort -nr | while read -r index; do
+		[ -n "$index" ] || continue
+		/usr/bin/sms_tool -s "$STORAGE" -d "$PORT" delete "$index" >/dev/null 2>&1 || \
+			log_msg "WARN failed to delete sms index $index"
+	done
+}
+
+wechat_cfg() {
+	WP_SCKEY="$(uci_get wechatpush.config.sckey '')"
+	WP_SC3KEY="$(uci_get wechatpush.config.sc3key '')"
+	WP_SC3UID="$(uci_get wechatpush.config.sc3uid '')"
+	WP_SC3TAGS="$(uci_get wechatpush.config.sc3tags '')"
+	WP_PUSHPLUS_TOKEN="$(uci_get wechatpush.config.pushplus_token '')"
+	WP_TG_API_SERVER="$(uci_get wechatpush.config.tg_api_server https://api.telegram.org)"
+	WP_TG_TOKEN="$(uci_get wechatpush.config.tg_token '')"
+	WP_TG_CHAT_ID="$(uci_get wechatpush.config.tg_chat_id '')"
+	WP_TG_THREAD_ID="$(uci_get wechatpush.config.tg_thread_id '')"
+	WP_WXPUSHER_APPTOKEN="$(uci_get wechatpush.config.wxpusher_apptoken '')"
+	WP_WXPUSHER_UIDS="$(uci_get wechatpush.config.wxpusher_uids '')"
+	WP_WXPUSHER_TOPICIDS="$(uci_get wechatpush.config.wxpusher_topicIds '')"
+	WP_CORPID="$(uci_get wechatpush.config.corpid '')"
+	WP_USERID="$(uci_get wechatpush.config.userid '')"
+	WP_AGENTID="$(uci_get wechatpush.config.agentid '')"
+	WP_CORPSECRET="$(uci_get wechatpush.config.corpsecret '')"
+	WP_PROXY="$(uci_get wechatpush.config.proxy_address '')"
+}
+
+curl_post() {
+	local url="$1"
+	shift
+
+	if [ -n "$WP_PROXY" ]; then
+		curl -fsS --connect-timeout 20 --max-time 60 --retry 1 -x "$WP_PROXY" "$@" "$url"
+	else
+		curl -fsS --connect-timeout 20 --max-time 60 --retry 1 "$@" "$url"
+	fi
+}
+
+push_diy_url() {
+	local title="$1"
+	local content="$2"
+	local payload
+
+	[ -n "$FORWARD_DIY_URL" ] || return 1
+	payload="$(jq -cn --arg title "$title" --arg content "$content" \
+		'{title:$title,content:$content,text:($title + "\n\n" + $content)}')"
+	curl_post "$FORWARD_DIY_URL" -H 'Content-Type: application/json' -d "$payload" >/dev/null
+}
+
+push_serverchan() {
+	local title="$1"
+	local content="$2"
+	local url
+
+	[ -n "$WP_SCKEY" ] || return 1
+	url="https://sctapi.ftqq.com/${WP_SCKEY}.send"
+	curl_post "$url" \
+		--data-urlencode "text=$title" \
+		--data-urlencode "desp=$content" >/dev/null
+}
+
+push_serverchan3() {
+	local title="$1"
+	local content="$2"
+	local payload
+
+	[ -n "$WP_SC3UID" ] && [ -n "$WP_SC3KEY" ] || return 1
+	payload="$(jq -cn --arg title "$title" --arg desp "$content" --arg tags "$WP_SC3TAGS" \
+		'{title:$title,desp:$desp,tags:$tags}')"
+	curl_post "https://${WP_SC3UID}.push.ft07.com/send/${WP_SC3KEY}.send" \
+		-H 'Content-Type: application/json' -d "$payload" >/dev/null
+}
+
+push_pushplus() {
+	local title="$1"
+	local content="$2"
+	local payload
+
+	[ -n "$WP_PUSHPLUS_TOKEN" ] || return 1
+	payload="$(jq -cn --arg title "$title" --arg content "$content" --arg token "$WP_PUSHPLUS_TOKEN" \
+		'{title:$title,content:$content,token:$token,template:"markdown"}')"
+	curl_post "http://www.pushplus.plus/send" -H 'Content-Type: application/json' -d "$payload" >/dev/null
+}
+
+push_telegram() {
+	local title="$1"
+	local content="$2"
+	local payload text
+
+	[ -n "$WP_TG_TOKEN" ] && [ -n "$WP_TG_CHAT_ID" ] || return 1
+	text="<b>${title}</b>\n----\n${content}"
+	if [ -n "$WP_TG_THREAD_ID" ]; then
+		payload="$(jq -cn --arg text "$text" --arg chat_id "$WP_TG_CHAT_ID" --arg thread_id "$WP_TG_THREAD_ID" \
+			'{text:$text,chat_id:$chat_id,message_thread_id:$thread_id,parse_mode:"HTML"}')"
+	else
+		payload="$(jq -cn --arg text "$text" --arg chat_id "$WP_TG_CHAT_ID" \
+			'{text:$text,chat_id:$chat_id,parse_mode:"HTML"}')"
+	fi
+	curl_post "${WP_TG_API_SERVER}/bot${WP_TG_TOKEN}/sendMessage" \
+		-H 'Content-Type: application/json' -d "$payload" >/dev/null
+}
+
+push_wxpusher() {
+	local title="$1"
+	local content="$2"
+	local payload
+
+	[ -n "$WP_WXPUSHER_APPTOKEN" ] || return 1
+	[ -n "$WP_WXPUSHER_UIDS" ] || [ -n "$WP_WXPUSHER_TOPICIDS" ] || return 1
+	payload="$(jq -cn \
+		--arg summary "$title" \
+		--arg content "$content" \
+		--arg appToken "$WP_WXPUSHER_APPTOKEN" \
+		--arg uids "$WP_WXPUSHER_UIDS" \
+		--arg topicIds "$WP_WXPUSHER_TOPICIDS" \
+		'{
+			summary:$summary,
+			content:$content,
+			appToken:$appToken,
+			contentType:3,
+			uids:($uids | split(" ") | map(select(length > 0))),
+			topicIds:($topicIds | split(" ") | map(select(length > 0)))
+		}')"
+	curl_post "http://wxpusher.zjiecode.com/api/send/message" \
+		-H 'Content-Type: application/json' -d "$payload" >/dev/null
+}
+
+push_qywx() {
+	local title="$1"
+	local content="$2"
+	local token payload
+
+	[ -n "$WP_CORPID" ] && [ -n "$WP_CORPSECRET" ] && [ -n "$WP_AGENTID" ] || return 1
+	[ -n "$WP_USERID" ] || WP_USERID="@all"
+	token="$(curl -fsS --connect-timeout 15 --max-time 30 \
+		"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${WP_CORPID}&corpsecret=${WP_CORPSECRET}" | jq -r '.access_token // empty')"
+	[ -n "$token" ] || return 1
+	payload="$(jq -cn --arg touser "$WP_USERID" --arg agentid "$WP_AGENTID" --arg content "#### ${title}\n${content}" \
+		'{touser:$touser,msgtype:"markdown",agentid:($agentid|tonumber),markdown:{content:$content}}')"
+	curl_post "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${token}" \
+		-H 'Content-Type: application/json' -d "$payload" >/dev/null
+}
+
+push_message() {
+	local title="$1"
+	local content="$2"
+
+	wechat_cfg
+	case "$FORWARD_CHANNEL" in
+		serverchan) push_serverchan "$title" "$content" ;;
+		serverchan3) push_serverchan3 "$title" "$content" ;;
+		pushplus) push_pushplus "$title" "$content" ;;
+		telegram) push_telegram "$title" "$content" ;;
+		wxpusher) push_wxpusher "$title" "$content" ;;
+		qywx) push_qywx "$title" "$content" ;;
+		diy) push_diy_url "$title" "$content" ;;
+		auto|'')
+			push_diy_url "$title" "$content" ||
+			push_telegram "$title" "$content" ||
+			push_pushplus "$title" "$content" ||
+			push_serverchan3 "$title" "$content" ||
+			push_serverchan "$title" "$content" ||
+			push_wxpusher "$title" "$content" ||
+			push_qywx "$title" "$content"
+		;;
+		*) log_msg "ERROR unknown forward channel: $FORWARD_CHANNEL"; return 1 ;;
+	esac
+}
+
+read_merged_messages() {
+	local raw_file="$1"
+
+	jq -c '
+		def indexes(v):
+			((v // "") | tostring | [scan("[0-9]+")] | unique_by(tonumber) | sort_by(tonumber));
+		def msg_index:
+			(.index // .id // .slot // "");
+		def norm:
+			{
+				indexes: indexes(msg_index),
+				sender: (.sender // "-"),
+				timestamp: (.timestamp // .date // .time // "-"),
+				reference: (.reference // .ref // ""),
+				part: ((.part // 1) | tonumber),
+				total: ((.total // 1) | tonumber),
+				content: (.content // .text // .message // "")
+			};
+		(.msg // .messages // . // []) as $list |
+		($list | if type == "array" then . else [] end | map(norm)) as $msgs |
+		reduce $msgs[] as $m ({};
+			($m.total | if . > 1 then
+				[$m.sender, $m.timestamp, $m.reference, tostring] | join("|")
+			else
+				[$m.sender, $m.timestamp, ($m.indexes | join(","))] | join("|")
+			end) as $key |
+			.[$key].sender = $m.sender |
+			.[$key].timestamp = $m.timestamp |
+			.[$key].reference = $m.reference |
+			.[$key].parts = ([.[$key].parts // 1, $m.total] | max) |
+			.[$key].indexes = (((.[$key].indexes // []) + $m.indexes) | unique_by(tonumber) | sort_by(tonumber)) |
+			.[$key].content[(($m.part | tostring))] = $m.content |
+			.[$key].received[(($m.part | tostring))] = true
+		) |
+		to_entries |
+		map(.value) |
+		map(. + {
+			received_count: ((.received // {}) | keys | length),
+			complete: (((.received // {}) | keys | length) >= (.parts // 1)),
+			index: ((.indexes // []) | join(",")),
+			body: ([range(1; ((.parts // 1) + 1)) as $i | (.content[($i|tostring)] // "")] | join(""))
+		}) |
+		sort_by((.indexes[-1] // 0) | tonumber) |
+		reverse[]' "$raw_file"
+}
+
+scan_once() {
+	local raw_file title content key complete indexes sender timestamp body hash count pushed skipped
+
+	sms_cfg
+	[ "$FORWARD_ENABLE" = "1" ] || { log_msg "INFO disabled"; return 0; }
+	[ "$FORWARD_BACKEND" = "wechatpush" ] || { log_msg "ERROR unsupported backend: $FORWARD_BACKEND"; return 1; }
+	require_cmd jq || return 1
+	require_cmd curl || return 1
+	require_cmd /usr/bin/sms_tool || return 1
+
+	mkdir -p "$STATE_DIR"
+	raw_file="$(mktemp "$STATE_DIR/raw.XXXXXX")"
+	if ! /usr/bin/sms_tool -s "$STORAGE" -d "$PORT" -f '%Y-%m-%d %H:%M' -j recv > "$raw_file" 2>"$STATE_DIR/sms_tool.err"; then
+		log_msg "ERROR sms_tool recv failed: $(cat "$STATE_DIR/sms_tool.err" 2>/dev/null)"
+		rm -f "$raw_file"
+		return 1
+	fi
+
+	read_merged_messages "$raw_file" > "$PENDING_FILE" || {
+		log_msg "ERROR failed to parse sms json"
+		rm -f "$raw_file"
+		return 1
+	}
+	rm -f "$raw_file"
+
+	count=0
+	pushed=0
+	skipped=0
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		count=$((count + 1))
+		complete="$(printf '%s' "$line" | jq -r '.complete')"
+		indexes="$(printf '%s' "$line" | jq -r '.index')"
+		sender="$(printf '%s' "$line" | jq -r '.sender')"
+		timestamp="$(printf '%s' "$line" | jq -r '.timestamp')"
+		body="$(printf '%s' "$line" | jq -r '.body')"
+		[ -n "$body" ] || body="-"
+
+		if [ "$FORWARD_COMPLETE_ONLY" = "1" ] && [ "$complete" != "true" ]; then
+			skipped=$((skipped + 1))
+			log_msg "INFO wait incomplete sms sender=$sender time=$timestamp indexes=$indexes"
+			continue
+		fi
+
+		hash="$(printf '%s' "${sender}|${timestamp}|${indexes}|${body}" | sha256sum | awk '{print $1}')"
+		key="${STORAGE}|${sender}|${timestamp}|${indexes}|${hash}"
+		if already_sent "$key"; then
+			skipped=$((skipped + 1))
+			continue
+		fi
+
+		title="CPE 收到短信"
+		content="发件人：${sender}
+时间：${timestamp}
+索引：${indexes}
+
+${body}"
+		if push_message "$title" "$content"; then
+			mark_sent "$key"
+			delete_indexes "$indexes"
+			pushed=$((pushed + 1))
+			log_msg "INFO forwarded sms sender=$sender time=$timestamp indexes=$indexes"
+		else
+			log_msg "ERROR push failed sender=$sender time=$timestamp indexes=$indexes"
+			return 1
+		fi
+	done < "$PENDING_FILE"
+
+	log_msg "INFO scan done total=$count pushed=$pushed skipped=$skipped"
+}
+
+run_loop() {
+	local interval
+
+	sms_cfg
+	interval="$(uci_get sms_tool.general.forward_interval 30)"
+	case "$interval" in
+		''|*[!0-9]*) interval=30 ;;
+	esac
+	[ "$interval" -ge 10 ] || interval=10
+
+	log_msg "INFO service started interval=${interval}s"
+	while :; do
+		scan_once
+		sleep "$interval"
+	done
+}
+
+test_push() {
+	sms_cfg
+	title="CPE 短信转发测试"
+	content="这是一条测试通知。时间：$(date '+%Y-%m-%d %H:%M:%S')"
+	if push_message "$title" "$content"; then
+		log_msg "INFO test push ok"
+		echo "OK"
+	else
+		log_msg "ERROR test push failed"
+		echo "FAILED"
+		return 1
+	fi
+}
+
+status_json() {
+	local last_line running enabled interval
+
+	sms_cfg
+	enabled="$FORWARD_ENABLE"
+	interval="$(uci_get sms_tool.general.forward_interval 30)"
+	last_line="$(tail -n 1 "$LOG_FILE" 2>/dev/null)"
+	if ps | grep -F '/usr/bin/c8-sms-forward run' | grep -v grep >/dev/null 2>&1; then
+		running=1
+	else
+		running=0
+	fi
+	printf '{'
+	printf '"enabled":%s,' "$([ "$enabled" = "1" ] && echo true || echo false)"
+	printf '"running":%s,' "$([ "$running" = "1" ] && echo true || echo false)"
+	printf '"interval":%s,' "$interval"
+	printf '"storage":"%s",' "$(printf '%s' "$STORAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"port":"%s",' "$(printf '%s' "$PORT" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"last":"%s"' "$(printf '%s' "$last_line" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '}\n'
+}
+
+case "$1" in
+	run) run_loop ;;
+	once|'') scan_once ;;
+	test) test_push ;;
+	status) status_json ;;
+	*) echo "Usage: $0 {run|once|test|status}" >&2; exit 1 ;;
+esac

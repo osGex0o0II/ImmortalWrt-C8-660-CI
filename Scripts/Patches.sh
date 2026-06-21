@@ -207,7 +207,7 @@ REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-settings.js"
 
 # 修复覆盖层脚本可执行权限
 LOG "Fixing executable permissions for overlay files"
-find "$MODEM_DST" -type f \( -name "*.sh" -o -name "sendat" -o -name "modeminit" -o -name "moimei" -o -name "mopdu" -o -name "rsrp2rssi" \) 2>/dev/null | while read f; do
+find "$MODEM_DST" -type f \( -name "*.sh" -o -name "sendat" -o -name "modeminit" -o -name "c8-sms-forward" -o -name "moimei" -o -name "mopdu" -o -name "rsrp2rssi" \) 2>/dev/null | while read f; do
 	chmod +x "$f"
 	LOG "+x $f"
 done
