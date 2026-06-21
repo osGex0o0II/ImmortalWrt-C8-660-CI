@@ -1,21 +1,28 @@
-#!/usr/bin/lua
+#!/bin/sh
 
-rsrp = tonumber(arg[1])
-bw = tonumber(arg[2])
-if bw == 1.4 then
-	n = 6
-else
-	n = bw * 5
-end
-
-if tonumber(string.match(_VERSION, "%d+%.%d")) > 5.1 then
-	rssi = rsrp + (10 * math.log(n * 12, 10))
-else
-	rssi = rsrp + (10 * math.log10(n * 12))
-end
-if rssi < -113 then
-	rssi = -113
-elseif rssi > -51 then
-	rssi = -51
-end
-print(math.floor(rssi))
+awk -v rsrp="${1:-}" -v bw="${2:-}" '
+function valid_number(v) {
+	return v ~ /^-?[0-9]+([.][0-9]+)?$/;
+}
+function floor_number(v, i) {
+	i = int(v);
+	return (v < i) ? i - 1 : i;
+}
+BEGIN {
+	if (!valid_number(rsrp)) {
+		print -113;
+		exit;
+	}
+	if (!valid_number(bw))
+		bw = 20;
+	n = (bw == 1.4) ? 6 : bw * 5;
+	if (n <= 0)
+		n = 100;
+	rssi = rsrp + (10 * log(n * 12) / log(10));
+	if (rssi < -113)
+		rssi = -113;
+	else if (rssi > -51)
+		rssi = -51;
+	printf "%d\n", floor_number(rssi);
+}
+'

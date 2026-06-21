@@ -159,16 +159,8 @@ fi
 REQUIRE_FILE "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts"
 
 # 安装 modem 管理文件（sendat + 脚本 + 配置 + 热插拔）
-MODEM_SRC="$PATCHES_DIR/files"
 MODEM_DST="$WRT_DIR/package/base-files/files"
-if [ -d "$MODEM_SRC" ]; then
-	LOG "Installing modem files from $MODEM_SRC to $MODEM_DST"
-	mkdir -p "$MODEM_DST"
-	for f in "$MODEM_SRC/"*; do
-		[ -e "$f" ] || continue
-		cp -rLvf "$f" "$MODEM_DST/"
-	done
-fi
+bash "$REPO_DIR/Scripts/InstallC8Overlay.sh" "$WRT_DIR"
 
 # 追加设备定义到 filogic.mk（幂等检查）
 for MK in "$PATCHES_DIR"/*.mk; do
@@ -195,21 +187,4 @@ REQUIRE_PATTERN "$NET_FILE" "ucidef_set_interface_lan \"lan1 lan2 lan3 lan4\"" "
 # 注入 MAC 地址分配（第 2 个 esac — mediatek_setup_macs）
 INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2
 REQUIRE_PATTERN "$NET_FILE" "mtd_get_mac_ascii bdinfo fac_mac" "C8-660 network MAC mapping"
-REQUIRE_FILE "$MODEM_DST/usr/share/luci/menu.d/luci-app-c8modem.json"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/signal.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/status.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/settings.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/at.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/cellscan.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-read.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-send.js"
-REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/sms-settings.js"
-
-# 修复覆盖层脚本可执行权限
-LOG "Fixing executable permissions for overlay files"
-find "$MODEM_DST" -type f \( -name "*.sh" -o -name "sendat" -o -name "modeminit" -o -name "c8-sms-forward" -o -name "moimei" -o -name "mopdu" -o -name "rsrp2rssi" \) 2>/dev/null | while read f; do
-	chmod +x "$f"
-	LOG "+x $f"
-done
-
 LOG "Done"

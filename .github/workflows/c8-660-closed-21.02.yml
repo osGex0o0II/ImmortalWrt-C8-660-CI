@@ -91,14 +91,16 @@ jobs:
 
           cd ./wrt/ && echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
 
-      - name: Apply Patches (LED/Network/WiFi MAC)
+      - name: Apply Patches (Overlay/LED/Network/WiFi MAC)
         run: |
           # 闭源构建使用 hanwckf SDK，DTS 和设备定义已内置
-          # 仅注入 LED、网络接口、WiFi MAC 补丁（SDK 已包含，为幂等操作）
+          # 注入 C8 overlay、LED、网络接口、WiFi MAC 补丁（SDK 已包含，为幂等操作）
           export GITHUB_WORKSPACE="$GITHUB_WORKSPACE"
           PATCHES_DIR="$GITHUB_WORKSPACE/patches"
 
           LOG() { echo "=== $* ==="; }
+
+          bash "$GITHUB_WORKSPACE/Scripts/InstallC8Overlay.sh" ./wrt/
 
           INJECT_CASE() {
             local FILE="$1"

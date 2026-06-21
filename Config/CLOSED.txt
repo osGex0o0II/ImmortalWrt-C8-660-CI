@@ -77,9 +77,11 @@ CONFIG_PACKAGE_luci-app-ledtrig-rssi=y
 CONFIG_PACKAGE_luci-app-ledtrig-switch=y
 CONFIG_PACKAGE_luci-app-ledtrig-usbport=y
 CONFIG_PACKAGE_luci-app-log=y
-CONFIG_PACKAGE_luci-app-sms-tool=y
 CONFIG_PACKAGE_luci-app-zerotier=y
-CONFIG_PACKAGE_luci-i18n-sms-tool-zh-cn=y
+# C8 uses the bundled JS SMS pages in luci-app-c8modem; keep only the
+# sms-tool command below and avoid the legacy Lua LuCI app.
+# CONFIG_PACKAGE_luci-app-sms-tool is not set
+# CONFIG_PACKAGE_luci-i18n-sms-tool-zh-cn is not set
 
 # --- V12 系统工具 ---
 CONFIG_PACKAGE_adb=y
