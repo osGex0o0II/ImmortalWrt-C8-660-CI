@@ -537,6 +537,7 @@ jobs:
           require_rootfs 'usr/bin/cellscan\.sh' 'C8 base station scan helper'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-c8modem\.json' 'C8 modem LuCI JS menu'
           require_rootfs 'usr/share/rpcd/acl\.d/luci-app-c8modem\.json' 'C8 modem LuCI ACL'
+          require_rootfs 'www/luci-static/resources/view/c8modem/signal\.js' 'C8 modem JS signal page'
           require_rootfs 'www/luci-static/resources/view/c8modem/status\.js' 'C8 modem JS status page'
           require_rootfs 'www/luci-static/resources/view/c8modem/settings\.js' 'C8 modem JS settings page'
           require_rootfs 'www/luci-static/resources/view/c8modem/at\.js' 'C8 modem JS AT page'

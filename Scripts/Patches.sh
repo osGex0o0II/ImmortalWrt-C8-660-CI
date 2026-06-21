@@ -196,6 +196,7 @@ REQUIRE_PATTERN "$NET_FILE" "ucidef_set_interface_lan \"lan1 lan2 lan3 lan4\"" "
 INJECT_CASE "$NET_FILE" "$PATCHES_DIR/02_network_macs.snippet" "mtd_get_mac_ascii bdinfo" 2
 REQUIRE_PATTERN "$NET_FILE" "mtd_get_mac_ascii bdinfo fac_mac" "C8-660 network MAC mapping"
 REQUIRE_FILE "$MODEM_DST/usr/share/luci/menu.d/luci-app-c8modem.json"
+REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/signal.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/status.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/settings.js"
 REQUIRE_FILE "$MODEM_DST/www/luci-static/resources/view/c8modem/at.js"
