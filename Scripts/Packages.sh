@@ -122,6 +122,10 @@ fi
 
 # 插件
 UPDATE_PACKAGE "luci-app-partexp" "sirpdboy/luci-app-partexp" "main" "" "partexp" "luci-app-partexp" "partexp"
+if [[ "${WRT_CONFIG:-}" != *CLOSED* ]] && grep -qs '^CONFIG_PACKAGE_luci-app-homeproxy=y$' "${CONFIG_FILES[@]}"; then
+	UPDATE_PACKAGE "luci-app-homeproxy" "immortalwrt/homeproxy" "master" "" "homeproxy" "" "homeproxy"
+	bash "$GITHUB_WORKSPACE/Scripts/PatchHomeProxyModern.sh" "luci-app-homeproxy"
+fi
 if grep -qs '^CONFIG_PACKAGE_luci-app-wechatpush=y$' "${CONFIG_FILES[@]}"; then
 	UPDATE_PACKAGE "luci-app-wechatpush" "tty228/luci-app-wechatpush" "master" "" "wechatpush" "" "wechatpush"
 fi

@@ -545,6 +545,18 @@ jobs:
           require_rootfs 'usr/share/luci/menu\.d/luci-app-wechatpush\.json' 'LuCI WeChatPush app'
           require_rootfs 'www/luci-static/resources/view/wechatpush/config\.js' 'LuCI WeChatPush config page'
           require_rootfs 'usr/share/wechatpush/wechatpush' 'WeChatPush backend script'
+          require_rootfs 'usr/bin/sing-box' 'sing-box proxy core'
+          require_rootfs 'etc/init\.d/homeproxy' 'HomeProxy init service'
+          require_rootfs 'etc/config/homeproxy' 'HomeProxy UCI config'
+          require_rootfs 'usr/share/luci/menu\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy app'
+          require_rootfs 'usr/share/rpcd/acl\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy ACL'
+          require_rootfs 'www/luci-static/resources/view/homeproxy/client\.js' 'HomeProxy client page'
+          require_rootfs 'www/luci-static/resources/view/homeproxy/node\.js' 'HomeProxy node page'
+          require_rootfs 'www/luci-static/resources/view/homeproxy/status\.js' 'HomeProxy status page'
+          require_rootfs 'etc/homeproxy/scripts/generate_client\.uc' 'HomeProxy client config generator'
+          require_rootfs 'etc/homeproxy/scripts/update_subscriptions\.uc' 'HomeProxy subscription updater'
+          require_rootfs 'usr/lib/ucode/digest\.so' 'ucode digest module for HomeProxy'
+          require_rootfs 'lib/modules/.*/nft_tproxy\.ko' 'NFT tproxy kernel module'
           require_rootfs 'usr/bin/cellscan\.sh' 'C8 base station scan helper'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-c8modem\.json' 'C8 modem LuCI JS menu'
           require_rootfs 'usr/share/rpcd/acl\.d/luci-app-c8modem\.json' 'C8 modem LuCI ACL'
@@ -580,6 +592,31 @@ jobs:
           reject_rootfs 'usr/lib/lua/luci/view/modem/readsms\.htm' 'legacy LuCI read SMS view'
           reject_rootfs 'usr/lib/lua/luci/view/modem/sendsms\.htm' 'legacy LuCI send SMS view'
           reject_rootfs 'usr/share/rpcd/acl\.d/luci-app-sms-tool\.json' 'legacy LuCI SMS ACL'
+          reject_rootfs 'usr/bin/xray' 'legacy xray proxy core'
+          reject_rootfs 'usr/bin/v2ray' 'legacy v2ray proxy core'
+          reject_rootfs 'usr/bin/mihomo' 'legacy mihomo proxy core'
+          reject_rootfs 'usr/bin/clash' 'legacy clash proxy core'
+          reject_rootfs 'usr/bin/ss-redir' 'legacy shadowsocks-libev redir'
+          reject_rootfs 'usr/share/luci/menu\.d/luci-app-passwall.*\.json' 'legacy PassWall LuCI app'
+          reject_rootfs 'usr/share/luci/menu\.d/luci-app-openclash\.json' 'legacy OpenClash LuCI app'
+
+          HOMEPROXY_NODE_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/view/homeproxy/node.js)"
+          if printf '%s' "$HOMEPROXY_NODE_JS" | grep -Eq "o.value\('vmess'|o.value\('shadowtls'|o.value\('ssh'|o.value\('socks'|o.value\('hysteria',"; then
+            echo "::error::HomeProxy node UI still exposes legacy protocol choices"
+            printf '%s\n' "$HOMEPROXY_NODE_JS" | grep -nE "o.value\('vmess'|o.value\('shadowtls'|o.value\('ssh'|o.value\('socks'|o.value\('hysteria'," || true
+            exit 1
+          fi
+          if printf '%s' "$HOMEPROXY_NODE_JS" | grep -Eq "aes-128-ctr|aes-192-ctr|aes-256-ctr|aes-128-cfb|aes-192-cfb|aes-256-cfb|chacha20'|chacha20-ietf'|rc4-md5"; then
+            echo "::error::HomeProxy node UI still exposes legacy Shadowsocks methods"
+            printf '%s\n' "$HOMEPROXY_NODE_JS" | grep -nE "aes-128-ctr|aes-192-ctr|aes-256-ctr|aes-128-cfb|aes-192-cfb|aes-256-cfb|chacha20'|chacha20-ietf'|rc4-md5" || true
+            exit 1
+          fi
+          HOMEPROXY_GENERATOR="$("$UNSQUASHFS" -cat "$ROOTFS" etc/homeproxy/scripts/generate_client.uc)"
+          if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -q 'modern_node_types'; then
+            echo "::error::HomeProxy generator is missing modern-node guard"
+            exit 1
+          fi
+          echo "OK: HomeProxy modern client mode is enforced"
 
           STATUS_PATHS="$(sed -n 's#.*squashfs-root/\(www/luci-static/resources/view/status.*/10_system\.js\)$#\1#p' "$ROOTFS_LIST")"
           if [ -z "$STATUS_PATHS" ]; then
