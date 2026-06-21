@@ -22,7 +22,7 @@
 	},
 	"admin/modem/settings": {
 		"title": "模块设置",
-		"order": 20,
+		"order": 40,
 		"action": {
 			"type": "view",
 			"path": "c8modem/settings"
@@ -33,7 +33,7 @@
 	},
 	"admin/modem/at": {
 		"title": "调试工具",
-		"order": 30,
+		"order": 50,
 		"action": {
 			"type": "view",
 			"path": "c8modem/at"
@@ -44,7 +44,7 @@
 	},
 	"admin/modem/cellscan": {
 		"title": "基站扫描",
-		"order": 35,
+		"order": 30,
 		"action": {
 			"type": "view",
 			"path": "c8modem/cellscan"
@@ -55,7 +55,7 @@
 	},
 	"admin/modem/sms": {
 		"title": "短信工具",
-		"order": 40,
+		"order": 20,
 		"action": {
 			"type": "firstchild"
 		},

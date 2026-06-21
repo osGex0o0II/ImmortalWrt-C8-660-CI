@@ -14,11 +14,24 @@ uci_get() {
 	uci -q get "$1" 2>/dev/null || printf '%s' "${2:-}"
 }
 
+uci_first() {
+	local default="$1" key value
+
+	shift
+	for key in "$@"; do
+		value="$(uci -q get "$key" 2>/dev/null)"
+		if [ -n "$value" ]; then
+			printf '%s' "$value"
+			return 0
+		fi
+	done
+	printf '%s' "$default"
+}
+
 sms_cfg() {
 	STORAGE="$(uci_get sms_tool.general.storage ME)"
 	PORT="$(uci_get sms_tool.general.readport /dev/ttyUSB2)"
 	FORWARD_ENABLE="$(uci_get sms_tool.general.forward_enable 0)"
-	FORWARD_BACKEND="$(uci_get sms_tool.general.forward_backend wechatpush)"
 	FORWARD_COMPLETE_ONLY="$(uci_get sms_tool.general.forward_complete_only 1)"
 	FORWARD_DELETE_AFTER="$(uci_get sms_tool.general.forward_delete_after 0)"
 	FORWARD_CHANNEL="$(uci_get sms_tool.general.forward_channel auto)"
@@ -61,23 +74,23 @@ delete_indexes() {
 }
 
 wechat_cfg() {
-	WP_SCKEY="$(uci_get wechatpush.config.sckey '')"
-	WP_SC3KEY="$(uci_get wechatpush.config.sc3key '')"
-	WP_SC3UID="$(uci_get wechatpush.config.sc3uid '')"
-	WP_SC3TAGS="$(uci_get wechatpush.config.sc3tags '')"
-	WP_PUSHPLUS_TOKEN="$(uci_get wechatpush.config.pushplus_token '')"
-	WP_TG_API_SERVER="$(uci_get wechatpush.config.tg_api_server https://api.telegram.org)"
-	WP_TG_TOKEN="$(uci_get wechatpush.config.tg_token '')"
-	WP_TG_CHAT_ID="$(uci_get wechatpush.config.tg_chat_id '')"
-	WP_TG_THREAD_ID="$(uci_get wechatpush.config.tg_thread_id '')"
-	WP_WXPUSHER_APPTOKEN="$(uci_get wechatpush.config.wxpusher_apptoken '')"
-	WP_WXPUSHER_UIDS="$(uci_get wechatpush.config.wxpusher_uids '')"
-	WP_WXPUSHER_TOPICIDS="$(uci_get wechatpush.config.wxpusher_topicIds '')"
-	WP_CORPID="$(uci_get wechatpush.config.corpid '')"
-	WP_USERID="$(uci_get wechatpush.config.userid '')"
-	WP_AGENTID="$(uci_get wechatpush.config.agentid '')"
-	WP_CORPSECRET="$(uci_get wechatpush.config.corpsecret '')"
-	WP_PROXY="$(uci_get wechatpush.config.proxy_address '')"
+	WP_SCKEY="$(uci_first '' sms_tool.general.forward_serverchan_sckey wechatpush.config.sckey)"
+	WP_SC3KEY="$(uci_first '' sms_tool.general.forward_serverchan3_key wechatpush.config.sc3key)"
+	WP_SC3UID="$(uci_first '' sms_tool.general.forward_serverchan3_uid wechatpush.config.sc3uid)"
+	WP_SC3TAGS="$(uci_first '' sms_tool.general.forward_serverchan3_tags wechatpush.config.sc3tags)"
+	WP_PUSHPLUS_TOKEN="$(uci_first '' sms_tool.general.forward_pushplus_token wechatpush.config.pushplus_token)"
+	WP_TG_API_SERVER="$(uci_first 'https://api.telegram.org' sms_tool.general.forward_tg_api_server wechatpush.config.tg_api_server)"
+	WP_TG_TOKEN="$(uci_first '' sms_tool.general.forward_tg_token wechatpush.config.tg_token)"
+	WP_TG_CHAT_ID="$(uci_first '' sms_tool.general.forward_tg_chat_id wechatpush.config.tg_chat_id)"
+	WP_TG_THREAD_ID="$(uci_first '' sms_tool.general.forward_tg_thread_id wechatpush.config.tg_thread_id)"
+	WP_WXPUSHER_APPTOKEN="$(uci_first '' sms_tool.general.forward_wxpusher_apptoken wechatpush.config.wxpusher_apptoken)"
+	WP_WXPUSHER_UIDS="$(uci_first '' sms_tool.general.forward_wxpusher_uids wechatpush.config.wxpusher_uids)"
+	WP_WXPUSHER_TOPICIDS="$(uci_first '' sms_tool.general.forward_wxpusher_topicids wechatpush.config.wxpusher_topicIds)"
+	WP_CORPID="$(uci_first '' sms_tool.general.forward_qywx_corpid wechatpush.config.corpid)"
+	WP_USERID="$(uci_first '@all' sms_tool.general.forward_qywx_userid wechatpush.config.userid)"
+	WP_AGENTID="$(uci_first '' sms_tool.general.forward_qywx_agentid wechatpush.config.agentid)"
+	WP_CORPSECRET="$(uci_first '' sms_tool.general.forward_qywx_corpsecret wechatpush.config.corpsecret)"
+	WP_PROXY="$(uci_first '' sms_tool.general.forward_proxy wechatpush.config.proxy_address)"
 }
 
 curl_post() {
@@ -273,7 +286,6 @@ scan_once() {
 
 	sms_cfg
 	[ "$FORWARD_ENABLE" = "1" ] || { log_msg "INFO disabled"; return 0; }
-	[ "$FORWARD_BACKEND" = "wechatpush" ] || { log_msg "ERROR unsupported backend: $FORWARD_BACKEND"; return 1; }
 	require_cmd jq || return 1
 	require_cmd curl || return 1
 	require_cmd /usr/bin/sms_tool || return 1
