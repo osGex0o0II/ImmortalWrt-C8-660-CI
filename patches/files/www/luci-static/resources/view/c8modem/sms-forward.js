@@ -5,7 +5,7 @@
 'require fs';
 'require ui';
 
-const channels = [
+const channelTypes = [
 	[ 'serverchan', _('Server酱') ],
 	[ 'serverchan3', _('Server酱3') ],
 	[ 'pushplus', _('PushPlus') ],
@@ -15,23 +15,83 @@ const channels = [
 	[ 'diy', _('自定义 Webhook') ]
 ];
 
-function channelTitle(value) {
-	for (let i = 0; i < channels.length; i++)
-		if (channels[i][0] === value)
-			return channels[i][1];
+function sectionId(section) {
+	return section && (section['.name'] || section.name || section['.anonymous']);
+}
+
+function channelTypeTitle(value) {
+	for (let i = 0; i < channelTypes.length; i++)
+		if (channelTypes[i][0] === value)
+			return channelTypes[i][1];
 
 	return value || '-';
 }
 
-function dependsChannel(option, channel) {
-	option.depends({ forward_primary_channel: channel });
-	option.depends({ forward_backup_enable: '1', forward_backup_channel: channel });
+function channelLabel(section) {
+	const id = sectionId(section);
+	const name = section.name || id || '-';
+	const type = channelTypeTitle(section.type);
+	const enabled = section.enabled !== '0';
+	const ready = channelReady(section);
+
+	return '%s（%s%s%s）'.format(
+		name,
+		type,
+		enabled ? '' : _('，已停用'),
+		ready ? '' : _('，未配置完整')
+	);
 }
 
-function addChannelValues(option) {
-	channels.forEach(function(item) {
+function channelReady(section) {
+	if (!section || section.enabled === '0')
+		return false;
+
+	switch (section.type) {
+	case 'serverchan':
+		return !!section.sckey;
+	case 'serverchan3':
+		return !!section.uid && !!section.sendkey;
+	case 'pushplus':
+		return !!section.token;
+	case 'telegram':
+		return !!section.bot_token && !!section.chat_id;
+	case 'wxpusher':
+		return !!section.app_token && (!!section.uids || !!section.topic_ids);
+	case 'qywx':
+		return !!section.corpid && !!section.corpsecret && !!section.agentid;
+	case 'diy':
+		return !!section.url;
+	default:
+		return false;
+	}
+}
+
+function addChannelValues(option, sections, includeEmpty) {
+	let count = 0;
+
+	if (includeEmpty)
+		option.value('', _('不使用'));
+
+	sections.forEach(function(section) {
+		const id = sectionId(section);
+		if (!id || section.enabled === '0' || !channelReady(section))
+			return;
+
+		option.value(id, channelLabel(section));
+		count++;
+	});
+
+	return count;
+}
+
+function addTypeValues(option) {
+	channelTypes.forEach(function(item) {
 		option.value(item[0], item[1]);
 	});
+}
+
+function dependsType(option, type) {
+	option.depends('type', type);
 }
 
 return view.extend({
@@ -40,7 +100,8 @@ return view.extend({
 	},
 
 	render: function() {
-		let m, s, o;
+		const channelSections = uci.sections('sms_tool', 'forward_channel') || [];
+		let m, s, c, o, readyCount;
 
 		m = new form.Map('sms_tool', _('短信转发'));
 		s = m.section(form.NamedSection, 'general', 'sms_tool', _('转发设置'));
@@ -48,13 +109,11 @@ return view.extend({
 		s.addremove = false;
 
 		s.tab('status', _('转发状态'));
-		s.tab('route', _('主备通道'));
-		s.tab('channels', _('通道配置'));
+		s.tab('advanced', _('高级设置'));
 		s.tab('logs', _('转发日志'));
 
 		o = s.taboption('status', form.Flag, 'forward_enable', _('启用短信转发'));
 		o.rmempty = false;
-		o.description = _('收到完整短信后自动推送到主通道，主通道失败后再尝试备用通道。');
 
 		o = s.taboption('status', form.DummyValue, '_forward_status', _('当前状态'));
 		o.cfgvalue = function() {
@@ -66,15 +125,49 @@ return view.extend({
 					data = {};
 				}
 
-				return _('服务：%s；主通道：%s；备用：%s；最近状态：%s').format(
+				return _('服务：%s；主通道：%s%s；备用：%s%s；最近状态：%s').format(
 					data.running ? _('运行中') : _('未运行'),
-					channelTitle(data.primary_channel),
-					data.backup_enabled ? channelTitle(data.backup_channel) : _('未启用'),
+					data.primary_name || data.primary_channel || '-',
+					data.primary_ready ? '' : _('（需要先配置通道）'),
+					data.backup_enabled ? (data.backup_name || data.backup_channel || '-') : _('未启用'),
+					(data.backup_enabled && !data.backup_ready) ? _('（需要先配置通道）') : '',
 					data.last || '-'
 				);
 			}).catch(function(e) {
 				return e.message;
 			});
+		};
+
+		o = s.taboption('status', form.ListValue, 'forward_primary_channel', _('主通道'));
+		readyCount = addChannelValues(o, channelSections, false);
+		if (!readyCount)
+			o.value('', _('请先配置通道'));
+		o.rmempty = false;
+		o.validate = function(section_id, value) {
+			if (uci.get('sms_tool', 'general', 'forward_enable') !== '1')
+				return true;
+			if (!readyCount)
+				return _('请先在通道配置中添加并启用一个配置完整的通道');
+			if (!value)
+				return _('请选择主通道');
+			return true;
+		};
+
+		o = s.taboption('status', form.Flag, 'forward_backup_enable', _('启用备用通道'));
+		o.rmempty = false;
+
+		o = s.taboption('status', form.ListValue, 'forward_backup_channel', _('备用通道'));
+		addChannelValues(o, channelSections, true);
+		o.depends('forward_backup_enable', '1');
+		o.validate = function(section_id, value) {
+			const primary = uci.get('sms_tool', 'general', 'forward_primary_channel');
+			if (uci.get('sms_tool', 'general', 'forward_enable') !== '1')
+				return true;
+			if (uci.get('sms_tool', 'general', 'forward_backup_enable') === '1' && !value)
+				return _('请选择备用通道');
+			if (value && value === primary)
+				return _('备用通道不能和主通道相同');
+			return true;
 		};
 
 		o = s.taboption('status', form.Button, '_forward_test', _('测试转发'));
@@ -105,114 +198,31 @@ return view.extend({
 			});
 		};
 
-		o = s.taboption('route', form.ListValue, 'forward_primary_channel', _('主通道'));
-		addChannelValues(o);
-		o.default = 'pushplus';
-		o.rmempty = false;
-
-		o = s.taboption('route', form.Flag, 'forward_backup_enable', _('启用备用通道'));
-		o.rmempty = false;
-
-		o = s.taboption('route', form.ListValue, 'forward_backup_channel', _('备用通道'));
-		addChannelValues(o);
-		o.default = 'telegram';
-		o.rmempty = false;
-		o.depends('forward_backup_enable', '1');
-
-		o = s.taboption('route', form.Value, 'forward_retry_count', _('失败重试次数'));
-		o.datatype = 'and(uinteger,max(5))';
-		o.default = '1';
-		o.rmempty = false;
-
-		o = s.taboption('route', form.Value, 'forward_retry_delay', _('重试间隔'));
-		o.datatype = 'and(uinteger,max(60))';
-		o.default = '3';
-		o.rmempty = false;
-
-		o = s.taboption('route', form.Value, 'forward_interval', _('扫描间隔'));
+		o = s.taboption('advanced', form.Value, 'forward_interval', _('扫描间隔'));
 		o.placeholder = '30';
 		o.datatype = 'and(uinteger,min(10))';
 		o.default = '30';
 		o.rmempty = false;
-		o.depends('forward_enable', '1');
 
-		o = s.taboption('route', form.Flag, 'forward_complete_only', _('只转发完整长短信'));
+		o = s.taboption('advanced', form.Value, 'forward_retry_count', _('失败重试次数'));
+		o.datatype = 'and(uinteger,max(5))';
 		o.default = '1';
 		o.rmempty = false;
-		o.depends('forward_enable', '1');
 
-		o = s.taboption('route', form.Flag, 'forward_delete_after', _('转发后删除原短信'));
+		o = s.taboption('advanced', form.Value, 'forward_retry_delay', _('重试间隔'));
+		o.datatype = 'and(uinteger,max(60))';
+		o.default = '3';
+		o.rmempty = false;
+
+		o = s.taboption('advanced', form.Flag, 'forward_complete_only', _('只转发完整长短信'));
+		o.default = '1';
+		o.rmempty = false;
+
+		o = s.taboption('advanced', form.Flag, 'forward_delete_after', _('转发后删除原短信'));
 		o.default = '0';
 		o.rmempty = false;
-		o.depends('forward_enable', '1');
 
-		o = s.taboption('channels', form.Value, 'forward_serverchan_sckey', _('Server酱 SendKey'));
-		o.password = true;
-		dependsChannel(o, 'serverchan');
-
-		o = s.taboption('channels', form.Value, 'forward_serverchan3_uid', _('Server酱3 UID'));
-		dependsChannel(o, 'serverchan3');
-
-		o = s.taboption('channels', form.Value, 'forward_serverchan3_key', _('Server酱3 SendKey'));
-		o.password = true;
-		dependsChannel(o, 'serverchan3');
-
-		o = s.taboption('channels', form.Value, 'forward_serverchan3_tags', _('Server酱3 标签'));
-		dependsChannel(o, 'serverchan3');
-
-		o = s.taboption('channels', form.Value, 'forward_pushplus_token', _('PushPlus Token'));
-		o.password = true;
-		dependsChannel(o, 'pushplus');
-
-		o = s.taboption('channels', form.Value, 'forward_tg_api_server', _('Telegram API 地址'));
-		o.placeholder = 'https://api.telegram.org';
-		o.default = 'https://api.telegram.org';
-		dependsChannel(o, 'telegram');
-
-		o = s.taboption('channels', form.Value, 'forward_tg_token', _('Telegram Bot Token'));
-		o.password = true;
-		dependsChannel(o, 'telegram');
-
-		o = s.taboption('channels', form.Value, 'forward_tg_chat_id', _('Telegram Chat ID'));
-		dependsChannel(o, 'telegram');
-
-		o = s.taboption('channels', form.Value, 'forward_tg_thread_id', _('Telegram 主题 ID'));
-		dependsChannel(o, 'telegram');
-
-		o = s.taboption('channels', form.Value, 'forward_wxpusher_apptoken', _('WxPusher AppToken'));
-		o.password = true;
-		dependsChannel(o, 'wxpusher');
-
-		o = s.taboption('channels', form.Value, 'forward_wxpusher_uids', _('WxPusher UID'));
-		o.placeholder = 'UID1 UID2';
-		dependsChannel(o, 'wxpusher');
-
-		o = s.taboption('channels', form.Value, 'forward_wxpusher_topicids', _('WxPusher 主题 ID'));
-		o.placeholder = '1 2';
-		dependsChannel(o, 'wxpusher');
-
-		o = s.taboption('channels', form.Value, 'forward_qywx_corpid', _('企业微信 CorpID'));
-		dependsChannel(o, 'qywx');
-
-		o = s.taboption('channels', form.Value, 'forward_qywx_corpsecret', _('企业微信 Secret'));
-		o.password = true;
-		dependsChannel(o, 'qywx');
-
-		o = s.taboption('channels', form.Value, 'forward_qywx_agentid', _('企业微信 AgentID'));
-		o.datatype = 'uinteger';
-		dependsChannel(o, 'qywx');
-
-		o = s.taboption('channels', form.Value, 'forward_qywx_userid', _('企业微信接收人'));
-		o.placeholder = '@all';
-		o.default = '@all';
-		dependsChannel(o, 'qywx');
-
-		o = s.taboption('channels', form.Value, 'forward_diy_url', _('Webhook 地址'));
-		o.placeholder = 'https://example.com/webhook';
-		o.description = _('将以 JSON 发送 title、content 和 text 字段。');
-		dependsChannel(o, 'diy');
-
-		o = s.taboption('channels', form.Value, 'forward_proxy', _('网络代理'));
+		o = s.taboption('advanced', form.Value, 'forward_proxy', _('网络代理'));
 		o.placeholder = 'http://127.0.0.1:7890';
 
 		o = s.taboption('logs', form.DummyValue, '_forward_log', _('最近日志'));
@@ -239,6 +249,116 @@ return view.extend({
 				ui.addNotification(null, E('p', e.message));
 			});
 		};
+
+		c = m.section(form.GridSection, 'forward_channel', _('通道配置'));
+		c.addremove = true;
+		c.anonymous = false;
+		c.sortable = false;
+		c.nodescriptions = true;
+		c.sectiontitle = function(section_id) {
+			return uci.get('sms_tool', section_id, 'name') || section_id;
+		};
+
+		o = c.option(form.Flag, 'enabled', _('启用'));
+		o.default = '1';
+		o.rmempty = false;
+
+		o = c.option(form.Value, 'name', _('名称'));
+		o.rmempty = false;
+
+		o = c.option(form.ListValue, 'type', _('类型'));
+		addTypeValues(o);
+		o.rmempty = false;
+
+		o = c.option(form.Value, 'remark', _('备注'));
+
+		o = c.option(form.DummyValue, '_ready', _('状态'));
+		o.cfgvalue = function(section_id) {
+			const section = {
+				type: uci.get('sms_tool', section_id, 'type'),
+				enabled: uci.get('sms_tool', section_id, 'enabled'),
+				sckey: uci.get('sms_tool', section_id, 'sckey'),
+				uid: uci.get('sms_tool', section_id, 'uid'),
+				sendkey: uci.get('sms_tool', section_id, 'sendkey'),
+				token: uci.get('sms_tool', section_id, 'token'),
+				bot_token: uci.get('sms_tool', section_id, 'bot_token'),
+				chat_id: uci.get('sms_tool', section_id, 'chat_id'),
+				app_token: uci.get('sms_tool', section_id, 'app_token'),
+				uids: uci.get('sms_tool', section_id, 'uids'),
+				topic_ids: uci.get('sms_tool', section_id, 'topic_ids'),
+				corpid: uci.get('sms_tool', section_id, 'corpid'),
+				corpsecret: uci.get('sms_tool', section_id, 'corpsecret'),
+				agentid: uci.get('sms_tool', section_id, 'agentid'),
+				url: uci.get('sms_tool', section_id, 'url')
+			};
+
+			return channelReady(section) ? _('可用') : _('未配置完整');
+		};
+
+		o = c.option(form.Value, 'sckey', _('Server酱 SendKey'));
+		o.password = true;
+		dependsType(o, 'serverchan');
+
+		o = c.option(form.Value, 'uid', _('Server酱3 UID'));
+		dependsType(o, 'serverchan3');
+
+		o = c.option(form.Value, 'sendkey', _('Server酱3 SendKey'));
+		o.password = true;
+		dependsType(o, 'serverchan3');
+
+		o = c.option(form.Value, 'tags', _('Server酱3 标签'));
+		dependsType(o, 'serverchan3');
+
+		o = c.option(form.Value, 'token', _('PushPlus Token'));
+		o.password = true;
+		dependsType(o, 'pushplus');
+
+		o = c.option(form.Value, 'api_server', _('Telegram API 地址'));
+		o.placeholder = 'https://api.telegram.org';
+		o.default = 'https://api.telegram.org';
+		dependsType(o, 'telegram');
+
+		o = c.option(form.Value, 'bot_token', _('Telegram Bot Token'));
+		o.password = true;
+		dependsType(o, 'telegram');
+
+		o = c.option(form.Value, 'chat_id', _('Telegram Chat ID'));
+		dependsType(o, 'telegram');
+
+		o = c.option(form.Value, 'thread_id', _('Telegram 主题 ID'));
+		dependsType(o, 'telegram');
+
+		o = c.option(form.Value, 'app_token', _('WxPusher AppToken'));
+		o.password = true;
+		dependsType(o, 'wxpusher');
+
+		o = c.option(form.Value, 'uids', _('WxPusher UID'));
+		o.placeholder = 'UID1 UID2';
+		dependsType(o, 'wxpusher');
+
+		o = c.option(form.Value, 'topic_ids', _('WxPusher 主题 ID'));
+		o.placeholder = '1 2';
+		dependsType(o, 'wxpusher');
+
+		o = c.option(form.Value, 'corpid', _('企业微信 CorpID'));
+		dependsType(o, 'qywx');
+
+		o = c.option(form.Value, 'corpsecret', _('企业微信 Secret'));
+		o.password = true;
+		dependsType(o, 'qywx');
+
+		o = c.option(form.Value, 'agentid', _('企业微信 AgentID'));
+		o.datatype = 'uinteger';
+		dependsType(o, 'qywx');
+
+		o = c.option(form.Value, 'userid', _('企业微信接收人'));
+		o.placeholder = '@all';
+		o.default = '@all';
+		dependsType(o, 'qywx');
+
+		o = c.option(form.Value, 'url', _('Webhook 地址'));
+		o.placeholder = 'https://example.com/webhook';
+		dependsType(o, 'diy');
 
 		return m.render();
 	},

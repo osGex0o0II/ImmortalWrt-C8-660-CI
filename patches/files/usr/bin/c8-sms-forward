@@ -36,21 +36,27 @@ sms_cfg() {
 	FORWARD_ENABLE="$(uci_get sms_tool.general.forward_enable 0)"
 	FORWARD_COMPLETE_ONLY="$(uci_get sms_tool.general.forward_complete_only 1)"
 	FORWARD_DELETE_AFTER="$(uci_get sms_tool.general.forward_delete_after 0)"
-	FORWARD_PRIMARY_CHANNEL="$(uci_get sms_tool.general.forward_primary_channel '')"
-	if [ -z "$FORWARD_PRIMARY_CHANNEL" ]; then
-		legacy_channel="$(uci_get sms_tool.general.forward_channel '')"
-		case "$legacy_channel" in
-			serverchan|serverchan3|pushplus|telegram|wxpusher|qywx|diy)
-				FORWARD_PRIMARY_CHANNEL="$legacy_channel"
-			;;
-			*) FORWARD_PRIMARY_CHANNEL="pushplus" ;;
-		esac
-	fi
+	FORWARD_PRIMARY_CHANNEL="$(uci_get sms_tool.general.forward_primary_channel ops_pushplus)"
 	FORWARD_BACKUP_ENABLE="$(uci_get sms_tool.general.forward_backup_enable 0)"
-	FORWARD_BACKUP_CHANNEL="$(uci_get sms_tool.general.forward_backup_channel telegram)"
+	FORWARD_BACKUP_CHANNEL="$(uci_get sms_tool.general.forward_backup_channel backup_telegram)"
 	FORWARD_RETRY_COUNT="$(uci_get sms_tool.general.forward_retry_count 1)"
 	FORWARD_RETRY_DELAY="$(uci_get sms_tool.general.forward_retry_delay 3)"
-	FORWARD_DIY_URL="$(uci_get sms_tool.general.forward_diy_url '')"
+
+	legacy_channel="$(uci_get sms_tool.general.forward_channel '')"
+	case "$legacy_channel" in
+		serverchan|serverchan3|pushplus|telegram|wxpusher|qywx|diy)
+			FORWARD_PRIMARY_CHANNEL="$legacy_channel"
+		;;
+	esac
+
+	case "$FORWARD_PRIMARY_CHANNEL" in
+		pushplus) FORWARD_PRIMARY_CHANNEL="ops_pushplus" ;;
+		telegram) FORWARD_PRIMARY_CHANNEL="backup_telegram" ;;
+	esac
+	case "$FORWARD_BACKUP_CHANNEL" in
+		pushplus) FORWARD_BACKUP_CHANNEL="ops_pushplus" ;;
+		telegram) FORWARD_BACKUP_CHANNEL="backup_telegram" ;;
+	esac
 }
 
 require_cmd() {
@@ -88,23 +94,105 @@ delete_indexes() {
 	done
 }
 
-wechat_cfg() {
-	WP_SCKEY="$(uci_first '' sms_tool.general.forward_serverchan_sckey wechatpush.config.sckey)"
-	WP_SC3KEY="$(uci_first '' sms_tool.general.forward_serverchan3_key wechatpush.config.sc3key)"
-	WP_SC3UID="$(uci_first '' sms_tool.general.forward_serverchan3_uid wechatpush.config.sc3uid)"
-	WP_SC3TAGS="$(uci_first '' sms_tool.general.forward_serverchan3_tags wechatpush.config.sc3tags)"
-	WP_PUSHPLUS_TOKEN="$(uci_first '' sms_tool.general.forward_pushplus_token wechatpush.config.pushplus_token)"
-	WP_TG_API_SERVER="$(uci_first 'https://api.telegram.org' sms_tool.general.forward_tg_api_server wechatpush.config.tg_api_server)"
-	WP_TG_TOKEN="$(uci_first '' sms_tool.general.forward_tg_token wechatpush.config.tg_token)"
-	WP_TG_CHAT_ID="$(uci_first '' sms_tool.general.forward_tg_chat_id wechatpush.config.tg_chat_id)"
-	WP_TG_THREAD_ID="$(uci_first '' sms_tool.general.forward_tg_thread_id wechatpush.config.tg_thread_id)"
-	WP_WXPUSHER_APPTOKEN="$(uci_first '' sms_tool.general.forward_wxpusher_apptoken wechatpush.config.wxpusher_apptoken)"
-	WP_WXPUSHER_UIDS="$(uci_first '' sms_tool.general.forward_wxpusher_uids wechatpush.config.wxpusher_uids)"
-	WP_WXPUSHER_TOPICIDS="$(uci_first '' sms_tool.general.forward_wxpusher_topicids wechatpush.config.wxpusher_topicIds)"
-	WP_CORPID="$(uci_first '' sms_tool.general.forward_qywx_corpid wechatpush.config.corpid)"
-	WP_USERID="$(uci_first '@all' sms_tool.general.forward_qywx_userid wechatpush.config.userid)"
-	WP_AGENTID="$(uci_first '' sms_tool.general.forward_qywx_agentid wechatpush.config.agentid)"
-	WP_CORPSECRET="$(uci_first '' sms_tool.general.forward_qywx_corpsecret wechatpush.config.corpsecret)"
+channel_get() {
+	local section="$1"
+	local option="$2"
+	local default="$3"
+
+	uci_get "sms_tool.${section}.${option}" "$default"
+}
+
+channel_name() {
+	local channel_id="$1"
+	local name
+
+	name="$(channel_get "$channel_id" name '')"
+	[ -n "$name" ] || name="$channel_id"
+	printf '%s' "$name"
+}
+
+channel_type() {
+	local channel_id="$1"
+	local type
+
+	type="$(channel_get "$channel_id" type '')"
+	if [ -z "$type" ]; then
+		case "$channel_id" in
+			serverchan|serverchan3|pushplus|telegram|wxpusher|qywx|diy) type="$channel_id" ;;
+		esac
+	fi
+	printf '%s' "$type"
+}
+
+channel_exists() {
+	local channel_id="$1"
+	local type
+
+	type="$(uci_get "sms_tool.${channel_id}" '')"
+	[ "$type" = "forward_channel" ] && return 0
+	case "$channel_id" in
+		serverchan|serverchan3|pushplus|telegram|wxpusher|qywx|diy) return 0 ;;
+	esac
+	return 1
+}
+
+channel_enabled() {
+	local channel_id="$1"
+	local enabled
+
+	enabled="$(channel_get "$channel_id" enabled 1)"
+	[ "$enabled" = "1" ] || return 1
+}
+
+channel_value() {
+	local channel_id="$1"
+	local option="$2"
+	local default="$3"
+
+	uci_first "$default" "sms_tool.${channel_id}.${option}"
+}
+
+channel_ready() {
+	local channel="$1"
+	local type
+
+	channel_exists "$channel" || return 1
+	channel_enabled "$channel" || return 1
+	type="$(channel_type "$channel")"
+
+	case "$type" in
+		serverchan)
+			[ -n "$(uci_first '' "sms_tool.${channel}.sckey" sms_tool.general.forward_serverchan_sckey wechatpush.config.sckey)" ]
+		;;
+		serverchan3)
+			[ -n "$(uci_first '' "sms_tool.${channel}.uid" sms_tool.general.forward_serverchan3_uid wechatpush.config.sc3uid)" ] &&
+			[ -n "$(uci_first '' "sms_tool.${channel}.sendkey" sms_tool.general.forward_serverchan3_key wechatpush.config.sc3key)" ]
+		;;
+		pushplus)
+			[ -n "$(uci_first '' "sms_tool.${channel}.token" sms_tool.general.forward_pushplus_token wechatpush.config.pushplus_token)" ]
+		;;
+		telegram)
+			[ -n "$(uci_first '' "sms_tool.${channel}.bot_token" sms_tool.general.forward_tg_token wechatpush.config.tg_token)" ] &&
+			[ -n "$(uci_first '' "sms_tool.${channel}.chat_id" sms_tool.general.forward_tg_chat_id wechatpush.config.tg_chat_id)" ]
+		;;
+		wxpusher)
+			[ -n "$(uci_first '' "sms_tool.${channel}.app_token" sms_tool.general.forward_wxpusher_apptoken wechatpush.config.wxpusher_apptoken)" ] &&
+			{ [ -n "$(uci_first '' "sms_tool.${channel}.uids" sms_tool.general.forward_wxpusher_uids wechatpush.config.wxpusher_uids)" ] ||
+				[ -n "$(uci_first '' "sms_tool.${channel}.topic_ids" sms_tool.general.forward_wxpusher_topicids wechatpush.config.wxpusher_topicIds)" ]; }
+		;;
+		qywx)
+			[ -n "$(uci_first '' "sms_tool.${channel}.corpid" sms_tool.general.forward_qywx_corpid wechatpush.config.corpid)" ] &&
+			[ -n "$(uci_first '' "sms_tool.${channel}.corpsecret" sms_tool.general.forward_qywx_corpsecret wechatpush.config.corpsecret)" ] &&
+			[ -n "$(uci_first '' "sms_tool.${channel}.agentid" sms_tool.general.forward_qywx_agentid wechatpush.config.agentid)" ]
+		;;
+		diy)
+			[ -n "$(channel_value "$channel" url "$(uci_get sms_tool.general.forward_diy_url '')")" ]
+		;;
+		*) return 1 ;;
+	esac
+}
+
+forward_cfg() {
 	WP_PROXY="$(uci_first '' sms_tool.general.forward_proxy wechatpush.config.proxy_address)"
 }
 
@@ -120,82 +208,107 @@ curl_post() {
 }
 
 push_diy_url() {
+	local channel="$1"
+	shift
 	local title="$1"
 	local content="$2"
-	local payload
+	local payload url
 
-	[ -n "$FORWARD_DIY_URL" ] || return 1
+	url="$(channel_value "$channel" url "$(uci_get sms_tool.general.forward_diy_url '')")"
+	[ -n "$url" ] || return 1
 	payload="$(jq -cn --arg title "$title" --arg content "$content" \
 		'{title:$title,content:$content,text:($title + "\n\n" + $content)}')"
-	curl_post "$FORWARD_DIY_URL" -H 'Content-Type: application/json' -d "$payload" >/dev/null
+	curl_post "$url" -H 'Content-Type: application/json' -d "$payload" >/dev/null
 }
 
 push_serverchan() {
+	local channel="$1"
+	shift
 	local title="$1"
 	local content="$2"
-	local url
+	local url sckey
 
-	[ -n "$WP_SCKEY" ] || return 1
-	url="https://sctapi.ftqq.com/${WP_SCKEY}.send"
+	sckey="$(uci_first '' "sms_tool.${channel}.sckey" sms_tool.general.forward_serverchan_sckey wechatpush.config.sckey)"
+	[ -n "$sckey" ] || return 1
+	url="https://sctapi.ftqq.com/${sckey}.send"
 	curl_post "$url" \
 		--data-urlencode "text=$title" \
 		--data-urlencode "desp=$content" >/dev/null
 }
 
 push_serverchan3() {
+	local channel="$1"
+	shift
 	local title="$1"
 	local content="$2"
-	local payload
+	local key uid tags payload
 
-	[ -n "$WP_SC3UID" ] && [ -n "$WP_SC3KEY" ] || return 1
-	payload="$(jq -cn --arg title "$title" --arg desp "$content" --arg tags "$WP_SC3TAGS" \
+	uid="$(uci_first '' "sms_tool.${channel}.uid" sms_tool.general.forward_serverchan3_uid wechatpush.config.sc3uid)"
+	key="$(uci_first '' "sms_tool.${channel}.sendkey" sms_tool.general.forward_serverchan3_key wechatpush.config.sc3key)"
+	tags="$(uci_first '' "sms_tool.${channel}.tags" sms_tool.general.forward_serverchan3_tags wechatpush.config.sc3tags)"
+	[ -n "$uid" ] && [ -n "$key" ] || return 1
+	payload="$(jq -cn --arg title "$title" --arg desp "$content" --arg tags "$tags" \
 		'{title:$title,desp:$desp,tags:$tags}')"
-	curl_post "https://${WP_SC3UID}.push.ft07.com/send/${WP_SC3KEY}.send" \
+	curl_post "https://${uid}.push.ft07.com/send/${key}.send" \
 		-H 'Content-Type: application/json' -d "$payload" >/dev/null
 }
 
 push_pushplus() {
+	local channel="$1"
+	shift
 	local title="$1"
 	local content="$2"
-	local payload
+	local token payload
 
-	[ -n "$WP_PUSHPLUS_TOKEN" ] || return 1
-	payload="$(jq -cn --arg title "$title" --arg content "$content" --arg token "$WP_PUSHPLUS_TOKEN" \
+	token="$(uci_first '' "sms_tool.${channel}.token" sms_tool.general.forward_pushplus_token wechatpush.config.pushplus_token)"
+	[ -n "$token" ] || return 1
+	payload="$(jq -cn --arg title "$title" --arg content "$content" --arg token "$token" \
 		'{title:$title,content:$content,token:$token,template:"markdown"}')"
 	curl_post "http://www.pushplus.plus/send" -H 'Content-Type: application/json' -d "$payload" >/dev/null
 }
 
 push_telegram() {
+	local channel="$1"
+	shift
 	local title="$1"
 	local content="$2"
-	local payload text
+	local api_server token chat_id thread_id payload text
 
-	[ -n "$WP_TG_TOKEN" ] && [ -n "$WP_TG_CHAT_ID" ] || return 1
+	api_server="$(uci_first 'https://api.telegram.org' "sms_tool.${channel}.api_server" sms_tool.general.forward_tg_api_server wechatpush.config.tg_api_server)"
+	token="$(uci_first '' "sms_tool.${channel}.bot_token" sms_tool.general.forward_tg_token wechatpush.config.tg_token)"
+	chat_id="$(uci_first '' "sms_tool.${channel}.chat_id" sms_tool.general.forward_tg_chat_id wechatpush.config.tg_chat_id)"
+	thread_id="$(uci_first '' "sms_tool.${channel}.thread_id" sms_tool.general.forward_tg_thread_id wechatpush.config.tg_thread_id)"
+	[ -n "$token" ] && [ -n "$chat_id" ] || return 1
 	text="<b>${title}</b>\n----\n${content}"
-	if [ -n "$WP_TG_THREAD_ID" ]; then
-		payload="$(jq -cn --arg text "$text" --arg chat_id "$WP_TG_CHAT_ID" --arg thread_id "$WP_TG_THREAD_ID" \
+	if [ -n "$thread_id" ]; then
+		payload="$(jq -cn --arg text "$text" --arg chat_id "$chat_id" --arg thread_id "$thread_id" \
 			'{text:$text,chat_id:$chat_id,message_thread_id:$thread_id,parse_mode:"HTML"}')"
 	else
-		payload="$(jq -cn --arg text "$text" --arg chat_id "$WP_TG_CHAT_ID" \
+		payload="$(jq -cn --arg text "$text" --arg chat_id "$chat_id" \
 			'{text:$text,chat_id:$chat_id,parse_mode:"HTML"}')"
 	fi
-	curl_post "${WP_TG_API_SERVER}/bot${WP_TG_TOKEN}/sendMessage" \
+	curl_post "${api_server}/bot${token}/sendMessage" \
 		-H 'Content-Type: application/json' -d "$payload" >/dev/null
 }
 
 push_wxpusher() {
+	local channel="$1"
+	shift
 	local title="$1"
 	local content="$2"
-	local payload
+	local app_token uids topic_ids payload
 
-	[ -n "$WP_WXPUSHER_APPTOKEN" ] || return 1
-	[ -n "$WP_WXPUSHER_UIDS" ] || [ -n "$WP_WXPUSHER_TOPICIDS" ] || return 1
+	app_token="$(uci_first '' "sms_tool.${channel}.app_token" sms_tool.general.forward_wxpusher_apptoken wechatpush.config.wxpusher_apptoken)"
+	uids="$(uci_first '' "sms_tool.${channel}.uids" sms_tool.general.forward_wxpusher_uids wechatpush.config.wxpusher_uids)"
+	topic_ids="$(uci_first '' "sms_tool.${channel}.topic_ids" sms_tool.general.forward_wxpusher_topicids wechatpush.config.wxpusher_topicIds)"
+	[ -n "$app_token" ] || return 1
+	[ -n "$uids" ] || [ -n "$topic_ids" ] || return 1
 	payload="$(jq -cn \
 		--arg summary "$title" \
 		--arg content "$content" \
-		--arg appToken "$WP_WXPUSHER_APPTOKEN" \
-		--arg uids "$WP_WXPUSHER_UIDS" \
-		--arg topicIds "$WP_WXPUSHER_TOPICIDS" \
+		--arg appToken "$app_token" \
+		--arg uids "$uids" \
+		--arg topicIds "$topic_ids" \
 		'{
 			summary:$summary,
 			content:$content,
@@ -209,16 +322,22 @@ push_wxpusher() {
 }
 
 push_qywx() {
+	local channel="$1"
+	shift
 	local title="$1"
 	local content="$2"
-	local token payload
+	local corpid corpsecret agentid userid token payload
 
-	[ -n "$WP_CORPID" ] && [ -n "$WP_CORPSECRET" ] && [ -n "$WP_AGENTID" ] || return 1
-	[ -n "$WP_USERID" ] || WP_USERID="@all"
+	corpid="$(uci_first '' "sms_tool.${channel}.corpid" sms_tool.general.forward_qywx_corpid wechatpush.config.corpid)"
+	corpsecret="$(uci_first '' "sms_tool.${channel}.corpsecret" sms_tool.general.forward_qywx_corpsecret wechatpush.config.corpsecret)"
+	agentid="$(uci_first '' "sms_tool.${channel}.agentid" sms_tool.general.forward_qywx_agentid wechatpush.config.agentid)"
+	userid="$(uci_first '@all' "sms_tool.${channel}.userid" sms_tool.general.forward_qywx_userid wechatpush.config.userid)"
+	[ -n "$corpid" ] && [ -n "$corpsecret" ] && [ -n "$agentid" ] || return 1
+	[ -n "$userid" ] || userid="@all"
 	token="$(curl -fsS --connect-timeout 15 --max-time 30 \
-		"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${WP_CORPID}&corpsecret=${WP_CORPSECRET}" | jq -r '.access_token // empty')"
+		"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpid}&corpsecret=${corpsecret}" | jq -r '.access_token // empty')"
 	[ -n "$token" ] || return 1
-	payload="$(jq -cn --arg touser "$WP_USERID" --arg agentid "$WP_AGENTID" --arg content "#### ${title}\n${content}" \
+	payload="$(jq -cn --arg touser "$userid" --arg agentid "$agentid" --arg content "#### ${title}\n${content}" \
 		'{touser:$touser,msgtype:"markdown",agentid:($agentid|tonumber),markdown:{content:$content}}')"
 	curl_post "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${token}" \
 		-H 'Content-Type: application/json' -d "$payload" >/dev/null
@@ -228,16 +347,19 @@ push_channel() {
 	local channel="$1"
 	local title="$2"
 	local content="$3"
+	local type
 
-	case "$channel" in
-		serverchan) push_serverchan "$title" "$content" ;;
-		serverchan3) push_serverchan3 "$title" "$content" ;;
-		pushplus) push_pushplus "$title" "$content" ;;
-		telegram) push_telegram "$title" "$content" ;;
-		wxpusher) push_wxpusher "$title" "$content" ;;
-		qywx) push_qywx "$title" "$content" ;;
-		diy) push_diy_url "$title" "$content" ;;
-		*) log_msg "ERROR unknown forward channel: $channel"; return 1 ;;
+	channel_enabled "$channel" || { log_msg "ERROR channel disabled or missing: $channel"; return 1; }
+	type="$(channel_type "$channel")"
+	case "$type" in
+		serverchan) push_serverchan "$channel" "$title" "$content" ;;
+		serverchan3) push_serverchan3 "$channel" "$title" "$content" ;;
+		pushplus) push_pushplus "$channel" "$title" "$content" ;;
+		telegram) push_telegram "$channel" "$title" "$content" ;;
+		wxpusher) push_wxpusher "$channel" "$title" "$content" ;;
+		qywx) push_qywx "$channel" "$title" "$content" ;;
+		diy) push_diy_url "$channel" "$title" "$content" ;;
+		*) log_msg "ERROR unknown forward channel type: channel=$channel type=$type"; return 1 ;;
 	esac
 }
 
@@ -260,11 +382,11 @@ push_with_retry() {
 	while [ "$attempt" -le "$retry_count" ]; do
 		attempt=$((attempt + 1))
 		if push_channel "$channel" "$title" "$content"; then
-			log_msg "INFO push $role ok channel=$channel attempt=$attempt"
+			log_msg "INFO push $role ok channel=$(channel_name "$channel") id=$channel attempt=$attempt"
 			return 0
 		fi
 
-		log_msg "WARN push $role failed channel=$channel attempt=$attempt"
+		log_msg "WARN push $role failed channel=$(channel_name "$channel") id=$channel attempt=$attempt"
 		[ "$attempt" -le "$retry_count" ] || break
 		[ "$retry_delay" -gt 0 ] && sleep "$retry_delay"
 	done
@@ -276,20 +398,20 @@ push_message() {
 	local title="$1"
 	local content="$2"
 
-	wechat_cfg
+	forward_cfg
 	if push_with_retry primary "$FORWARD_PRIMARY_CHANNEL" "$title" "$content"; then
 		return 0
 	fi
 
 	if [ "$FORWARD_BACKUP_ENABLE" = "1" ] && [ -n "$FORWARD_BACKUP_CHANNEL" ] && \
 		[ "$FORWARD_BACKUP_CHANNEL" != "$FORWARD_PRIMARY_CHANNEL" ]; then
-		log_msg "WARN primary failed, trying backup primary=$FORWARD_PRIMARY_CHANNEL backup=$FORWARD_BACKUP_CHANNEL"
+		log_msg "WARN primary failed, trying backup primary=$(channel_name "$FORWARD_PRIMARY_CHANNEL") backup=$(channel_name "$FORWARD_BACKUP_CHANNEL")"
 		if push_with_retry backup "$FORWARD_BACKUP_CHANNEL" "$title" "$content"; then
 			return 0
 		fi
 	fi
 
-	log_msg "ERROR push all failed primary=$FORWARD_PRIMARY_CHANNEL backup=$FORWARD_BACKUP_CHANNEL"
+	log_msg "ERROR push all failed primary=$(channel_name "$FORWARD_PRIMARY_CHANNEL") backup=$(channel_name "$FORWARD_BACKUP_CHANNEL")"
 	return 1
 }
 
@@ -470,8 +592,12 @@ status_json() {
 	printf '"storage":"%s",' "$(printf '%s' "$STORAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"port":"%s",' "$(printf '%s' "$PORT" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"primary_channel":"%s",' "$(printf '%s' "$FORWARD_PRIMARY_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"primary_name":"%s",' "$(channel_name "$FORWARD_PRIMARY_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"primary_ready":%s,' "$(channel_ready "$FORWARD_PRIMARY_CHANNEL" && echo true || echo false)"
 	printf '"backup_enabled":%s,' "$([ "$FORWARD_BACKUP_ENABLE" = "1" ] && echo true || echo false)"
 	printf '"backup_channel":"%s",' "$(printf '%s' "$FORWARD_BACKUP_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"backup_name":"%s",' "$(channel_name "$FORWARD_BACKUP_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"backup_ready":%s,' "$(channel_ready "$FORWARD_BACKUP_CHANNEL" && echo true || echo false)"
 	printf '"retry_count":%s,' "$retry_count"
 	printf '"retry_delay":%s,' "$retry_delay"
 	printf '"last":"%s"' "$(printf '%s' "$last_line" | sed 's/\\/\\\\/g; s/"/\\"/g')"
