@@ -170,11 +170,23 @@ function dependsType(option, type) {
 
 return view.extend({
 	load: function() {
-		return uci.load('sms_tool');
+		return Promise.all([
+			uci.load('sms_tool'),
+			fs.exec('/usr/bin/c8-sms-forward', [ 'status' ]).then(function(res) {
+				try {
+					return JSON.parse(res.stdout || '{}');
+				} catch (e) {
+					return {};
+				}
+			}).catch(function(e) {
+				return { deps_ready: false, missing_deps: e.message };
+			})
+		]);
 	},
 
-	render: function() {
+	render: function(loadData) {
 		const channelSections = uci.sections('sms_tool', 'forward_channel') || [];
+		const initialStatus = loadData && loadData[1] ? loadData[1] : {};
 		let m, s, c, o, readyCount;
 
 		m = new form.Map('sms_tool', _('短信转发'));
@@ -188,6 +200,13 @@ return view.extend({
 
 		o = s.taboption('status', form.Flag, 'forward_enable', _('启用短信转发'));
 		o.rmempty = false;
+		if (initialStatus.deps_ready === false)
+			o.readonly = true;
+		o.validate = function(section_id, value) {
+			if (value === '1' && initialStatus.deps_ready === false)
+				return _('运行依赖缺失：%s').format(initialStatus.missing_deps || '-');
+			return true;
+		};
 
 		o = s.taboption('status', form.DummyValue, '_forward_status', _('当前状态'));
 		o.cfgvalue = function() {
@@ -199,8 +218,13 @@ return view.extend({
 					data = {};
 				}
 
-				return _('服务：%s；可用通道：%s/%s；主通道：%s%s；备用：%s%s；最近状态：%s').format(
+				const deps = data.deps_ready === false
+					? _('；运行依赖缺失：%s').format(data.missing_deps || '-')
+					: '';
+
+				return _('服务：%s%s；可用通道：%s/%s；主通道：%s%s；备用：%s%s；最近状态：%s').format(
 					data.running ? _('运行中') : _('未运行'),
+					deps,
 					data.ready_channel_count || 0,
 					data.channel_count || 0,
 					data.primary_name || data.primary_channel || '-',

@@ -6,7 +6,7 @@
 
 function validNumber(value) {
 	value = (value || '').replace(/\s+/g, '').replace(/^\+/, '');
-	if (/^\d{3,20}$/.test(value))
+	if (/^\d{2,20}$/.test(value))
 		return value;
 	return null;
 }
@@ -49,7 +49,7 @@ return view.extend({
 			const msg = (text.value || '').trim();
 
 			if (!nr) {
-				ui.addNotification(null, E('p', _('请输入有效的电话号码')));
+				ui.addNotification(null, E('p', _('请输入有效号码，支持短号或带国家前缀的手机号')));
 				return Promise.resolve();
 			}
 			if (!msg) {
@@ -77,7 +77,7 @@ return view.extend({
 		return E('div', { 'class': 'cbi-map' }, [
 			E('h2', _('短信发送')),
 			E('fieldset', { 'class': 'cbi-section' }, [
-				showInfo ? E('div', { 'class': 'cbi-section-descr' }, _('电话号码前需加国家前缀（中国为86，不加+）。短号可直接填写。')) : '',
+				showInfo ? E('div', { 'class': 'cbi-section-descr' }, _('手机号建议加国家前缀（中国为86，不加+）；运营商短号可直接填写。')) : '',
 				E('div', { 'class': 'cbi-value' }, [
 					E('label', { 'class': 'cbi-value-title' }, _('发送至')),
 					E('div', { 'class': 'cbi-value-field' }, number)

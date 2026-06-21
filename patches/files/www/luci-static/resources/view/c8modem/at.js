@@ -53,7 +53,7 @@ return view.extend({
 		}
 
 		return E([
-			E('h2', _('AT命令工具')),
+			E('h2', _('调试工具')),
 			E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'class': 'cbi-value' }, [
 					E('label', { 'class': 'cbi-value-title' }, _('模块端口')),

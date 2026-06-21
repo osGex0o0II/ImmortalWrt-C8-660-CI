@@ -74,6 +74,15 @@ require_cmd() {
 	}
 }
 
+missing_runtime_deps() {
+	local missing dep
+
+	for dep in jq curl /usr/bin/sms_tool; do
+		command -v "$dep" >/dev/null 2>&1 || missing="${missing}${missing:+ }$dep"
+	done
+	printf '%s' "$missing"
+}
+
 trim_state() {
 	[ -f "$STATE_FILE" ] || return 0
 	tail -n 200 "$STATE_FILE" > "$STATE_FILE.tmp" 2>/dev/null && mv "$STATE_FILE.tmp" "$STATE_FILE"
@@ -698,9 +707,10 @@ channels_json() {
 
 status_json() {
 	local last_line running enabled interval retry_count retry_delay
-	local channel channel_count enabled_count ready_count
+	local channel channel_count enabled_count ready_count missing_deps
 
 	sms_cfg
+	missing_deps="$(missing_runtime_deps)"
 	enabled="$FORWARD_ENABLE"
 	interval="$(uci_get sms_tool.general.forward_interval 30)"
 	case "$interval" in
@@ -734,6 +744,8 @@ status_json() {
 	printf '"interval":%s,' "$interval"
 	printf '"storage":"%s",' "$(printf '%s' "$STORAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"port":"%s",' "$(printf '%s' "$PORT" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"deps_ready":%s,' "$([ -z "$missing_deps" ] && echo true || echo false)"
+	printf '"missing_deps":"%s",' "$(printf '%s' "$missing_deps" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"channel_count":%s,' "$channel_count"
 	printf '"enabled_channel_count":%s,' "$enabled_count"
 	printf '"ready_channel_count":%s,' "$ready_count"

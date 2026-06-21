@@ -13,6 +13,14 @@ function token(maxlen) {
 	};
 }
 
+function parseJson(text) {
+	try {
+		return JSON.parse(text || '{}');
+	} catch (e) {
+		return {};
+	}
+}
+
 return view.extend({
 	load: function() {
 		return Promise.all([
@@ -30,7 +38,7 @@ return view.extend({
 	render: function(data) {
 		const simStatus = (data[1] || '').trim() || '-';
 		let ipv6Status = (data[2] || '').trim();
-		const wan6 = JSON.parse(data[3].stdout || '{}');
+		const wan6 = parseJson(data[3].stdout);
 		const wan6Addr = Array.isArray(wan6['ipv6-address']) && wan6['ipv6-address'][0] ? wan6['ipv6-address'][0].address : '';
 		if (wan6Addr)
 			ipv6Status = _('已获取IPv6地址：%s').format(wan6Addr);
@@ -46,7 +54,7 @@ return view.extend({
 		const uptime = (data[7].stdout || '').trim();
 
 		let m, s, o;
-		m = new form.Map('modem', _('移动网络'));
+		m = new form.Map('modem', _('模块设置'));
 		s = m.section(form.TypedSection, 'ndis', _('蜂窝设置'));
 		s.anonymous = true;
 		s.addremove = false;
