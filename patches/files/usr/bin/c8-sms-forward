@@ -28,6 +28,14 @@ uci_first() {
 	printf '%s' "$default"
 }
 
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+channel_sections() {
+	uci -q show sms_tool | sed -n 's/^sms_tool\.\([^.=]*\)=forward_channel$/\1/p'
+}
+
 sms_cfg() {
 	local legacy_channel
 
@@ -190,6 +198,67 @@ channel_ready() {
 		;;
 		*) return 1 ;;
 	esac
+}
+
+channel_issue() {
+	local channel="$1"
+	local type missing
+
+	channel_exists "$channel" || { printf '通道不存在'; return 0; }
+	channel_enabled "$channel" || { printf '通道已停用'; return 0; }
+	type="$(channel_type "$channel")"
+
+	case "$type" in
+		serverchan)
+			[ -n "$(uci_first '' "sms_tool.${channel}.sckey" sms_tool.general.forward_serverchan_sckey wechatpush.config.sckey)" ] || \
+				missing="${missing}${missing:+、}Server酱 SendKey"
+		;;
+		serverchan3)
+			[ -n "$(uci_first '' "sms_tool.${channel}.uid" sms_tool.general.forward_serverchan3_uid wechatpush.config.sc3uid)" ] || \
+				missing="${missing}${missing:+、}Server酱3 UID"
+			[ -n "$(uci_first '' "sms_tool.${channel}.sendkey" sms_tool.general.forward_serverchan3_key wechatpush.config.sc3key)" ] || \
+				missing="${missing}${missing:+、}Server酱3 SendKey"
+		;;
+		pushplus)
+			[ -n "$(uci_first '' "sms_tool.${channel}.token" sms_tool.general.forward_pushplus_token wechatpush.config.pushplus_token)" ] || \
+				missing="${missing}${missing:+、}PushPlus Token"
+		;;
+		telegram)
+			[ -n "$(uci_first '' "sms_tool.${channel}.bot_token" sms_tool.general.forward_tg_token wechatpush.config.tg_token)" ] || \
+				missing="${missing}${missing:+、}Telegram Bot Token"
+			[ -n "$(uci_first '' "sms_tool.${channel}.chat_id" sms_tool.general.forward_tg_chat_id wechatpush.config.tg_chat_id)" ] || \
+				missing="${missing}${missing:+、}Telegram Chat ID"
+		;;
+		wxpusher)
+			[ -n "$(uci_first '' "sms_tool.${channel}.app_token" sms_tool.general.forward_wxpusher_apptoken wechatpush.config.wxpusher_apptoken)" ] || \
+				missing="${missing}${missing:+、}WxPusher AppToken"
+			{ [ -n "$(uci_first '' "sms_tool.${channel}.uids" sms_tool.general.forward_wxpusher_uids wechatpush.config.wxpusher_uids)" ] ||
+				[ -n "$(uci_first '' "sms_tool.${channel}.topic_ids" sms_tool.general.forward_wxpusher_topicids wechatpush.config.wxpusher_topicIds)" ]; } || \
+				missing="${missing}${missing:+、}WxPusher UID/主题 ID"
+		;;
+		qywx)
+			[ -n "$(uci_first '' "sms_tool.${channel}.corpid" sms_tool.general.forward_qywx_corpid wechatpush.config.corpid)" ] || \
+				missing="${missing}${missing:+、}企业微信 CorpID"
+			[ -n "$(uci_first '' "sms_tool.${channel}.corpsecret" sms_tool.general.forward_qywx_corpsecret wechatpush.config.corpsecret)" ] || \
+				missing="${missing}${missing:+、}企业微信 Secret"
+			[ -n "$(uci_first '' "sms_tool.${channel}.agentid" sms_tool.general.forward_qywx_agentid wechatpush.config.agentid)" ] || \
+				missing="${missing}${missing:+、}企业微信 AgentID"
+		;;
+		diy)
+			[ -n "$(channel_value "$channel" url "$(uci_get sms_tool.general.forward_diy_url '')")" ] || \
+				missing="${missing}${missing:+、}Webhook 地址"
+		;;
+		*)
+			printf '未知通道类型'
+			return 0
+		;;
+	esac
+
+	if [ -n "$missing" ]; then
+		printf '缺少%s' "$missing"
+	else
+		printf '可用'
+	fi
 }
 
 forward_cfg() {
@@ -550,6 +619,8 @@ run_loop() {
 
 test_push() {
 	sms_cfg
+	require_cmd jq || { echo "FAILED: missing jq"; return 1; }
+	require_cmd curl || { echo "FAILED: missing curl"; return 1; }
 	title="CPE 短信转发测试"
 	content="这是一条测试通知。时间：$(date '+%Y-%m-%d %H:%M:%S')"
 	if push_message "$title" "$content"; then
@@ -562,8 +633,72 @@ test_push() {
 	fi
 }
 
+test_channel() {
+	local channel="$1"
+	local issue title content
+
+	sms_cfg
+	forward_cfg
+
+	if [ -z "$channel" ]; then
+		echo "FAILED: 未指定通道"
+		return 1
+	fi
+
+	issue="$(channel_issue "$channel")"
+	if [ "$issue" != "可用" ]; then
+		log_msg "ERROR test channel not ready channel=$channel issue=$issue"
+		echo "FAILED: $(channel_name "$channel") $issue"
+		return 1
+	fi
+
+	require_cmd jq || { echo "FAILED: missing jq"; return 1; }
+	require_cmd curl || { echo "FAILED: missing curl"; return 1; }
+
+	title="CPE 通道测试"
+	content="这是一条测试通知。
+通道：$(channel_name "$channel")
+时间：$(date '+%Y-%m-%d %H:%M:%S')"
+	if push_channel "$channel" "$title" "$content"; then
+		log_msg "INFO test channel ok channel=$(channel_name "$channel") id=$channel"
+		echo "OK: $(channel_name "$channel") 测试发送成功"
+	else
+		log_msg "ERROR test channel failed channel=$(channel_name "$channel") id=$channel"
+		echo "FAILED: $(channel_name "$channel") 测试发送失败，请检查密钥、代理和网络"
+		return 1
+	fi
+}
+
+channels_json() {
+	local channel type enabled ready first issue remark
+
+	first=1
+	printf '['
+	for channel in $(channel_sections); do
+		type="$(channel_type "$channel")"
+		if channel_enabled "$channel"; then enabled=true; else enabled=false; fi
+		if channel_ready "$channel"; then ready=true; else ready=false; fi
+		issue="$(channel_issue "$channel")"
+		remark="$(channel_get "$channel" remark '')"
+
+		[ "$first" = "1" ] || printf ','
+		first=0
+		printf '{'
+		printf '"id":"%s",' "$(json_escape "$channel")"
+		printf '"name":"%s",' "$(channel_name "$channel" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+		printf '"type":"%s",' "$(json_escape "$type")"
+		printf '"enabled":%s,' "$enabled"
+		printf '"ready":%s,' "$ready"
+		printf '"issue":"%s",' "$(json_escape "$issue")"
+		printf '"remark":"%s"' "$(json_escape "$remark")"
+		printf '}'
+	done
+	printf ']\n'
+}
+
 status_json() {
 	local last_line running enabled interval retry_count retry_delay
+	local channel channel_count enabled_count ready_count
 
 	sms_cfg
 	enabled="$FORWARD_ENABLE"
@@ -585,19 +720,32 @@ status_json() {
 	else
 		running=0
 	fi
+	channel_count=0
+	enabled_count=0
+	ready_count=0
+	for channel in $(channel_sections); do
+		channel_count=$((channel_count + 1))
+		channel_enabled "$channel" && enabled_count=$((enabled_count + 1))
+		channel_ready "$channel" && ready_count=$((ready_count + 1))
+	done
 	printf '{'
 	printf '"enabled":%s,' "$([ "$enabled" = "1" ] && echo true || echo false)"
 	printf '"running":%s,' "$([ "$running" = "1" ] && echo true || echo false)"
 	printf '"interval":%s,' "$interval"
 	printf '"storage":"%s",' "$(printf '%s' "$STORAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"port":"%s",' "$(printf '%s' "$PORT" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"channel_count":%s,' "$channel_count"
+	printf '"enabled_channel_count":%s,' "$enabled_count"
+	printf '"ready_channel_count":%s,' "$ready_count"
 	printf '"primary_channel":"%s",' "$(printf '%s' "$FORWARD_PRIMARY_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"primary_name":"%s",' "$(channel_name "$FORWARD_PRIMARY_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"primary_ready":%s,' "$(channel_ready "$FORWARD_PRIMARY_CHANNEL" && echo true || echo false)"
+	printf '"primary_issue":"%s",' "$(channel_issue "$FORWARD_PRIMARY_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"backup_enabled":%s,' "$([ "$FORWARD_BACKUP_ENABLE" = "1" ] && echo true || echo false)"
 	printf '"backup_channel":"%s",' "$(printf '%s' "$FORWARD_BACKUP_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"backup_name":"%s",' "$(channel_name "$FORWARD_BACKUP_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"backup_ready":%s,' "$(channel_ready "$FORWARD_BACKUP_CHANNEL" && echo true || echo false)"
+	printf '"backup_issue":"%s",' "$(channel_issue "$FORWARD_BACKUP_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"retry_count":%s,' "$retry_count"
 	printf '"retry_delay":%s,' "$retry_delay"
 	printf '"last":"%s"' "$(printf '%s' "$last_line" | sed 's/\\/\\\\/g; s/"/\\"/g')"
@@ -618,8 +766,10 @@ case "$1" in
 	run) run_loop ;;
 	once|'') scan_once ;;
 	test) test_push ;;
+	test-channel) test_channel "$2" ;;
 	status) status_json ;;
+	channels) channels_json ;;
 	log) show_log ;;
 	clear-log) clear_log ;;
-	*) echo "Usage: $0 {run|once|test|status|log|clear-log}" >&2; exit 1 ;;
+	*) echo "Usage: $0 {run|once|test|test-channel <id>|status|channels|log|clear-log}" >&2; exit 1 ;;
 esac
