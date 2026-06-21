@@ -35,10 +35,70 @@ function statusText(data) {
 	return map[data.status] || data.status || '-';
 }
 
+function isRunning(data) {
+	return data && (data.status === 'running' || data.status === 'busy');
+}
+
+function percentValue(value) {
+	value = +value || 0;
+	return Math.max(0, Math.min(100, value));
+}
+
+function formatSeconds(seconds) {
+	seconds = Math.max(0, +seconds || 0);
+
+	if (seconds >= 60)
+		return _('%d 分 %02d 秒').format(Math.floor(seconds / 60), seconds % 60);
+
+	return _('%d 秒').format(seconds);
+}
+
+function progressbar(value) {
+	const pc = percentValue(value);
+
+	return E('div', {
+		'class': 'cbi-progressbar',
+		'title': _('%d%%').format(pc)
+	}, E('div', { 'style': 'width:%.2f%%'.format(pc) }));
+}
+
+function renderScanState(data) {
+	const running = isRunning(data);
+	const rows = [
+		E('strong', {}, statusText(data)),
+		' ',
+		E('span', {}, data.message || '')
+	];
+
+	if (running) {
+		rows.push(
+			E('br'),
+			progressbar(data.progress),
+			E('small', {}, [
+				_('预计总耗时：%s；剩余约：%s').format(formatSeconds(data.timeout), formatSeconds(data.remaining)),
+				data.phase ? '；' + data.phase : ''
+			])
+		);
+	}
+
+	if (data.detail)
+		rows.push(E('br'), E('small', {}, data.detail));
+
+	if (data.last_response)
+		rows.push(E('br'), E('small', {}, _('最后响应：%s').format(data.last_response)));
+
+	rows.push(
+		E('br'),
+		E('small', {}, _('端口：%s；命令：%s；更新时间：%s').format(data.port || '-', data.command || '-', data.updated || '-'))
+	);
+
+	return rows;
+}
+
 function renderRows(cells) {
 	if (!cells || !cells.length)
 		return E('tr', { 'class': 'tr' }, [
-			E('td', { 'class': 'td center', 'colspan': 8 }, _('暂无扫描结果'))
+			E('td', { 'class': 'td center', 'colspan': 10 }, _('暂无扫描结果'))
 		]);
 
 	return cells.map(function(cell) {
@@ -48,7 +108,9 @@ function renderRows(cells) {
 			E('td', { 'class': 'td left' }, [ cell.mcc || '-', ' / ', cell.mnc || '-' ]),
 			E('td', { 'class': 'td left' }, cell.earfcn || '-'),
 			E('td', { 'class': 'td left' }, cell.pci || '-'),
-			E('td', { 'class': 'td left' }, cell.signal || '-'),
+			E('td', { 'class': 'td left' }, cell.rsrp || cell.signal || '-'),
+			E('td', { 'class': 'td left' }, cell.rsrq || '-'),
+			E('td', { 'class': 'td left' }, cell.band || '-'),
 			E('td', { 'class': 'td left' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
@@ -74,6 +136,7 @@ function asRows(rows) {
 
 function renderContent(data) {
 	data = data || {};
+	const running = isRunning(data);
 	const tableRows = [
 		E('tr', { 'class': 'tr table-titles' }, [
 			E('th', { 'class': 'th left' }, _('制式')),
@@ -81,7 +144,9 @@ function renderContent(data) {
 			E('th', { 'class': 'th left' }, _('MCC/MNC')),
 			E('th', { 'class': 'th left' }, _('频点')),
 			E('th', { 'class': 'th left' }, _('PCI')),
-			E('th', { 'class': 'th left' }, _('信号')),
+			E('th', { 'class': 'th left' }, _('RSRP')),
+			E('th', { 'class': 'th left' }, _('RSRQ')),
+			E('th', { 'class': 'th left' }, _('频段')),
 			E('th', { 'class': 'th left' }, _('操作')),
 			E('th', { 'class': 'th left' }, _('原始数据'))
 		])
@@ -89,21 +154,20 @@ function renderContent(data) {
 
 	return E('div', { 'class': 'cbi-map' }, [
 		E('h2', _('基站扫描')),
+		E('div', { 'class': 'cbi-map-descr' }, _('扫描通常需要 1-3 分钟，页面最多等待约 4 分钟。扫描期间蜂窝数据可能短暂不可用，远程访问可能短暂中断；请在信号稳定时操作。')),
 		E('fieldset', { 'class': 'cbi-section' }, [
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('扫描状态')),
-				E('div', { 'class': 'cbi-value-field' }, [
-					E('strong', {}, statusText(data)),
-					' ',
-					E('span', {}, data.message || ''),
-					E('br'),
-					E('small', {}, _('端口：%s；更新时间：%s').format(data.port || '-', data.updated || '-'))
-				])
+				E('div', { 'class': 'cbi-value-field' }, renderScanState(data))
 			]),
 			E('div', { 'class': 'cbi-page-actions' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-apply',
+					'disabled': running ? 'disabled' : null,
 					click: function() {
+						if (!confirm(_('基站扫描通常持续 1-3 分钟，页面最多等待约 4 分钟，并可能短暂影响蜂窝数据连接。确定开始扫描？')))
+							return Promise.resolve();
+
 						return fs.exec('/usr/bin/cellscan.sh', [ 'start' ]).then(readAndRedraw)
 							.catch(function(e) { ui.addNotification(null, E('p', e.message)); });
 					}
@@ -111,6 +175,7 @@ function renderContent(data) {
 				' ',
 				E('button', {
 					'class': 'cbi-button cbi-button-reset',
+					'disabled': running ? null : 'disabled',
 					click: function() {
 						return fs.exec('/usr/bin/cellscan.sh', [ 'stop' ]).then(readAndRedraw)
 							.catch(function(e) { ui.addNotification(null, E('p', e.message)); });
@@ -146,7 +211,7 @@ return view.extend({
 		container = renderContent(data);
 		poll.add(function() {
 			return readAndRedraw();
-		}, 5);
+		}, 2);
 		return container;
 	},
 
