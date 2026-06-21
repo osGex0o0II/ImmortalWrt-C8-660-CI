@@ -29,12 +29,27 @@ uci_first() {
 }
 
 sms_cfg() {
+	local legacy_channel
+
 	STORAGE="$(uci_get sms_tool.general.storage ME)"
 	PORT="$(uci_get sms_tool.general.readport /dev/ttyUSB2)"
 	FORWARD_ENABLE="$(uci_get sms_tool.general.forward_enable 0)"
 	FORWARD_COMPLETE_ONLY="$(uci_get sms_tool.general.forward_complete_only 1)"
 	FORWARD_DELETE_AFTER="$(uci_get sms_tool.general.forward_delete_after 0)"
-	FORWARD_CHANNEL="$(uci_get sms_tool.general.forward_channel auto)"
+	FORWARD_PRIMARY_CHANNEL="$(uci_get sms_tool.general.forward_primary_channel '')"
+	if [ -z "$FORWARD_PRIMARY_CHANNEL" ]; then
+		legacy_channel="$(uci_get sms_tool.general.forward_channel '')"
+		case "$legacy_channel" in
+			serverchan|serverchan3|pushplus|telegram|wxpusher|qywx|diy)
+				FORWARD_PRIMARY_CHANNEL="$legacy_channel"
+			;;
+			*) FORWARD_PRIMARY_CHANNEL="pushplus" ;;
+		esac
+	fi
+	FORWARD_BACKUP_ENABLE="$(uci_get sms_tool.general.forward_backup_enable 0)"
+	FORWARD_BACKUP_CHANNEL="$(uci_get sms_tool.general.forward_backup_channel telegram)"
+	FORWARD_RETRY_COUNT="$(uci_get sms_tool.general.forward_retry_count 1)"
+	FORWARD_RETRY_DELAY="$(uci_get sms_tool.general.forward_retry_delay 3)"
 	FORWARD_DIY_URL="$(uci_get sms_tool.general.forward_diy_url '')"
 }
 
@@ -209,12 +224,12 @@ push_qywx() {
 		-H 'Content-Type: application/json' -d "$payload" >/dev/null
 }
 
-push_message() {
-	local title="$1"
-	local content="$2"
+push_channel() {
+	local channel="$1"
+	local title="$2"
+	local content="$3"
 
-	wechat_cfg
-	case "$FORWARD_CHANNEL" in
+	case "$channel" in
 		serverchan) push_serverchan "$title" "$content" ;;
 		serverchan3) push_serverchan3 "$title" "$content" ;;
 		pushplus) push_pushplus "$title" "$content" ;;
@@ -222,17 +237,60 @@ push_message() {
 		wxpusher) push_wxpusher "$title" "$content" ;;
 		qywx) push_qywx "$title" "$content" ;;
 		diy) push_diy_url "$title" "$content" ;;
-		auto|'')
-			push_diy_url "$title" "$content" ||
-			push_telegram "$title" "$content" ||
-			push_pushplus "$title" "$content" ||
-			push_serverchan3 "$title" "$content" ||
-			push_serverchan "$title" "$content" ||
-			push_wxpusher "$title" "$content" ||
-			push_qywx "$title" "$content"
-		;;
-		*) log_msg "ERROR unknown forward channel: $FORWARD_CHANNEL"; return 1 ;;
+		*) log_msg "ERROR unknown forward channel: $channel"; return 1 ;;
 	esac
+}
+
+push_with_retry() {
+	local role="$1"
+	local channel="$2"
+	local title="$3"
+	local content="$4"
+	local attempt=0 retry_count retry_delay
+
+	case "$FORWARD_RETRY_COUNT" in
+		''|*[!0-9]*) retry_count=0 ;;
+		*) retry_count="$FORWARD_RETRY_COUNT" ;;
+	esac
+	case "$FORWARD_RETRY_DELAY" in
+		''|*[!0-9]*) retry_delay=3 ;;
+		*) retry_delay="$FORWARD_RETRY_DELAY" ;;
+	esac
+
+	while [ "$attempt" -le "$retry_count" ]; do
+		attempt=$((attempt + 1))
+		if push_channel "$channel" "$title" "$content"; then
+			log_msg "INFO push $role ok channel=$channel attempt=$attempt"
+			return 0
+		fi
+
+		log_msg "WARN push $role failed channel=$channel attempt=$attempt"
+		[ "$attempt" -le "$retry_count" ] || break
+		[ "$retry_delay" -gt 0 ] && sleep "$retry_delay"
+	done
+
+	return 1
+}
+
+push_message() {
+	local title="$1"
+	local content="$2"
+
+	wechat_cfg
+	if push_with_retry primary "$FORWARD_PRIMARY_CHANNEL" "$title" "$content"; then
+		return 0
+	fi
+
+	if [ "$FORWARD_BACKUP_ENABLE" = "1" ] && [ -n "$FORWARD_BACKUP_CHANNEL" ] && \
+		[ "$FORWARD_BACKUP_CHANNEL" != "$FORWARD_PRIMARY_CHANNEL" ]; then
+		log_msg "WARN primary failed, trying backup primary=$FORWARD_PRIMARY_CHANNEL backup=$FORWARD_BACKUP_CHANNEL"
+		if push_with_retry backup "$FORWARD_BACKUP_CHANNEL" "$title" "$content"; then
+			return 0
+		fi
+	fi
+
+	log_msg "ERROR push all failed primary=$FORWARD_PRIMARY_CHANNEL backup=$FORWARD_BACKUP_CHANNEL"
+	return 1
 }
 
 read_merged_messages() {
@@ -383,11 +441,22 @@ test_push() {
 }
 
 status_json() {
-	local last_line running enabled interval
+	local last_line running enabled interval retry_count retry_delay
 
 	sms_cfg
 	enabled="$FORWARD_ENABLE"
 	interval="$(uci_get sms_tool.general.forward_interval 30)"
+	case "$interval" in
+		''|*[!0-9]*) interval=30 ;;
+	esac
+	retry_count="$FORWARD_RETRY_COUNT"
+	case "$retry_count" in
+		''|*[!0-9]*) retry_count=1 ;;
+	esac
+	retry_delay="$FORWARD_RETRY_DELAY"
+	case "$retry_delay" in
+		''|*[!0-9]*) retry_delay=3 ;;
+	esac
 	last_line="$(tail -n 1 "$LOG_FILE" 2>/dev/null)"
 	if ps | grep -F '/usr/bin/c8-sms-forward run' | grep -v grep >/dev/null 2>&1; then
 		running=1
@@ -400,8 +469,23 @@ status_json() {
 	printf '"interval":%s,' "$interval"
 	printf '"storage":"%s",' "$(printf '%s' "$STORAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '"port":"%s",' "$(printf '%s' "$PORT" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"primary_channel":"%s",' "$(printf '%s' "$FORWARD_PRIMARY_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"backup_enabled":%s,' "$([ "$FORWARD_BACKUP_ENABLE" = "1" ] && echo true || echo false)"
+	printf '"backup_channel":"%s",' "$(printf '%s' "$FORWARD_BACKUP_CHANNEL" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+	printf '"retry_count":%s,' "$retry_count"
+	printf '"retry_delay":%s,' "$retry_delay"
 	printf '"last":"%s"' "$(printf '%s' "$last_line" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 	printf '}\n'
+}
+
+show_log() {
+	tail -n 120 "$LOG_FILE" 2>/dev/null || true
+}
+
+clear_log() {
+	mkdir -p "$STATE_DIR"
+	: > "$LOG_FILE"
+	log_msg "INFO log cleared"
 }
 
 case "$1" in
@@ -409,5 +493,7 @@ case "$1" in
 	once|'') scan_once ;;
 	test) test_push ;;
 	status) status_json ;;
-	*) echo "Usage: $0 {run|once|test|status}" >&2; exit 1 ;;
+	log) show_log ;;
+	clear-log) clear_log ;;
+	*) echo "Usage: $0 {run|once|test|status|log|clear-log}" >&2; exit 1 ;;
 esac
