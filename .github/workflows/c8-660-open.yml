@@ -679,8 +679,6 @@ jobs:
         if: always()
         run: |
           cd ./wrt/
-          if [ -f .config ]; then
-            make clean -j$(nproc)
-          else
-            echo "Skip make clean: .config not generated"
-          fi
+          rm -rf build_dir tmp logs bin 2>/dev/null || true
+          rm -rf staging_dir/target* 2>/dev/null || true
+          rm -f .config.old 2>/dev/null || true
