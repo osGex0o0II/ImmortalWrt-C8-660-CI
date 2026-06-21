@@ -107,7 +107,7 @@ elif [ -f "$WIFI_UC" ]; then
 	sed -i "s/country='.*'/country='CN'/g" "$WIFI_UC"
 	if [ -n "$WRT_WORD" ]; then
 		sed -i "s/key='.*'/key='$WRT_WORD'/g" "$WIFI_UC"
-		sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" "$WIFI_UC"
+		sed -i "s/encryption='.*'/encryption='sae-mixed'/g" "$WIFI_UC"
 	else
 		sed -i "/key=/d" "$WIFI_UC"
 		sed -i "s/encryption='.*'/encryption='none'/g" "$WIFI_UC"

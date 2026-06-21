@@ -235,6 +235,10 @@ jobs:
           done
           echo "Patched: $FILE"
 
+      - name: Patch LuCI Wireless Security
+        run: |
+          bash $GITHUB_WORKSPACE/Scripts/PatchWirelessSecurity.sh ./wrt/
+
       - name: Debug Custom Packages
         if: failure()
         run: |

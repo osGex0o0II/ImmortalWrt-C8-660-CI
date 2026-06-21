@@ -17,7 +17,6 @@ uci set system.ntp.enable_server='0'
 uci add_list system.ntp.server='ntp.tencent.com'
 uci add_list system.ntp.server='ntp1.aliyun.com'
 uci add_list system.ntp.server='ntp.ntsc.ac.cn'
-uci add_list system.ntp.server='cn.ntp.org.cn'
 
 # 设置 LED (V12 风格)
 uci delete system.led_power 2>/dev/null
@@ -42,6 +41,12 @@ uci set system.led_wifi.dev="$wifi_led_dev"
 # 设置 LuCI 主题为 Aurora
 uci set luci.main.mediaurlbase='/luci-static/aurora'
 
+# CPE 网络性能默认项：多核收包、NAT/转发卸载。
+uci -q set network.globals='globals'
+uci -q set network.globals.packet_steering='1'
+uci -q set firewall.@defaults[0].flow_offloading='1'
+uci -q set firewall.@defaults[0].flow_offloading_hw='1'
+
 # 设置防火墙 flow offloading (V12 风格)
 uci set firewall.@defaults[0].fullcone='0'
 
@@ -53,6 +58,27 @@ uci -q set network.wan.proto='dhcp'
 uci -q set network.wan6='interface'
 uci -q set network.wan6.device='eth1'
 uci -q set network.wan6.proto='dhcpv6'
+uci -q set network.wan6.reqaddress='try'
+uci -q set network.wan6.reqprefix='auto'
+
+# 蜂窝 CPE 常见只下发一个 /64，默认使用 relay 让 LAN 侧也能拿到 IPv6。
+uci -q set dhcp.wan='dhcp'
+uci -q set dhcp.wan.interface='wan'
+uci -q set dhcp.wan.ignore='1'
+uci -q set dhcp.wan6='dhcp'
+uci -q set dhcp.wan6.interface='wan6'
+uci -q set dhcp.wan6.ignore='1'
+uci -q set dhcp.wan6.master='1'
+uci -q set dhcp.wan6.ra='relay'
+uci -q delete dhcp.wan6.ra_flags 2>/dev/null
+uci -q add_list dhcp.wan6.ra_flags='none'
+uci -q set dhcp.wan6.dhcpv6='relay'
+uci -q set dhcp.wan6.ndp='relay'
+uci -q set dhcp.lan.dhcpv6='relay'
+uci -q set dhcp.lan.ra='relay'
+uci -q delete dhcp.lan.ra_flags 2>/dev/null
+uci -q add_list dhcp.lan.ra_flags='none'
+uci -q set dhcp.lan.ndp='relay'
 base_mac="$(mtd_get_mac_ascii bdinfo fac_mac 2>/dev/null)"
 case "$base_mac" in
 	[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f])
@@ -92,6 +118,7 @@ uci commit system
 uci commit luci
 uci commit firewall
 uci commit network
+uci commit dhcp
 uci commit modem
 uci commit wireless
 

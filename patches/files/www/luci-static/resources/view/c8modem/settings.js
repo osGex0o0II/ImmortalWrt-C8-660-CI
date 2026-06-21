@@ -19,6 +19,7 @@ return view.extend({
 			uci.load('modem'),
 			fs.read('/tmp/simcardstat').catch(function() { return ''; }),
 			fs.read('/tmp/ipv6prefix').catch(function() { return ''; }),
+			fs.exec('/sbin/ifstatus', [ 'wan6' ]).catch(function() { return { stdout: '' }; }),
 			fs.exec('/bin/sendat', [ '2', 'AT+CGSN' ]).catch(function() { return { stdout: '' }; }),
 			fs.exec('/bin/sendat', [ '2', 'AT+QADBKEY?' ]).catch(function() { return { stdout: '' }; }),
 			fs.exec('/usr/bin/adb', [ 'devices' ]).catch(function() { return { stdout: '' }; }),
@@ -28,15 +29,21 @@ return view.extend({
 
 	render: function(data) {
 		const simStatus = (data[1] || '').trim() || '-';
-		const ipv6Status = (data[2] || '').trim() || _('Native IPV6未使能');
-		const imei = ((data[3].stdout || '').match(/\b\d{15}\b/) || [ '' ])[0];
-		const adbKey = ((data[4].stdout || '').match(/\+QADBKEY:\s*([A-Za-z0-9_.:-]+)/) || [ '', '' ])[1];
-		const adbDevice = (data[5].stdout || '').split(/\r?\n/).filter(function(line) {
+		let ipv6Status = (data[2] || '').trim();
+		const wan6 = JSON.parse(data[3].stdout || '{}');
+		const wan6Addr = Array.isArray(wan6['ipv6-address']) && wan6['ipv6-address'][0] ? wan6['ipv6-address'][0].address : '';
+		if (wan6Addr)
+			ipv6Status = _('已获取IPv6地址：%s').format(wan6Addr);
+		else if (!ipv6Status)
+			ipv6Status = _('Native IPV6未使能');
+		const imei = ((data[4].stdout || '').match(/\b\d{15}\b/) || [ '' ])[0];
+		const adbKey = ((data[5].stdout || '').match(/\+QADBKEY:\s*([A-Za-z0-9_.:-]+)/) || [ '', '' ])[1];
+		const adbDevice = (data[6].stdout || '').split(/\r?\n/).filter(function(line) {
 			return /\tdevice$/.test(line);
 		}).map(function(line) {
 			return line.split(/\s+/)[0];
 		}).join(', ');
-		const uptime = (data[6].stdout || '').trim();
+		const uptime = (data[7].stdout || '').trim();
 
 		let m, s, o;
 		m = new form.Map('modem', _('移动网络'));

@@ -19,6 +19,7 @@
 				"/tmp/result.at": [ "read" ],
 				"/usr/bin/adb devices": [ "exec" ],
 				"/usr/bin/adb shell uptime": [ "exec" ],
+				"/sbin/ifstatus wan6": [ "exec" ],
 				"/bin/sendat 2 *": [ "exec" ]
 			},
 			"ubus": {
