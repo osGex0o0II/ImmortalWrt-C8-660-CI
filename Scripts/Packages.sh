@@ -33,8 +33,21 @@ UPDATE_PACKAGE() {
 	echo " "
 	echo "Package: $PKG_NAME (repo: $PKG_REPO, branch: $LOCKED_BRANCH)"
 
+	local CLEAN_NAMES=("$PKG_NAME" "$REPO_NAME" "${PKG_LIST[@]}")
+	local SEEN_CLEAN_NAMES=" "
+
 	# 删除本地可能存在的不同名称的软件包
-	for NAME in "${PKG_LIST[@]}"; do
+	for NAME in "${CLEAN_NAMES[@]}"; do
+		[ -n "$NAME" ] || continue
+		case "$SEEN_CLEAN_NAMES" in
+			*" $NAME "*) continue ;;
+		esac
+		SEEN_CLEAN_NAMES="$SEEN_CLEAN_NAMES$NAME "
+		if [ -d "$NAME" ]; then
+			rm -rf "$NAME"
+			echo "Delete package directory: $NAME"
+		fi
+
 		# 查找匹配的目录
 		echo "Search directory: $NAME"
 		local FOUND_DIRS=$(find ../feeds/luci/ ../feeds/packages/ -maxdepth 3 -type d -iname "*$NAME*" 2>/dev/null)
@@ -123,7 +136,7 @@ fi
 # 插件
 UPDATE_PACKAGE "luci-app-partexp" "sirpdboy/luci-app-partexp" "main" "" "partexp" "luci-app-partexp" "partexp"
 if [[ "${WRT_CONFIG:-}" != *CLOSED* ]] && grep -qs '^CONFIG_PACKAGE_luci-app-homeproxy=y$' "${CONFIG_FILES[@]}"; then
-	UPDATE_PACKAGE "luci-app-homeproxy" "immortalwrt/homeproxy" "master" "" "homeproxy" "" "homeproxy"
+	UPDATE_PACKAGE "luci-app-homeproxy" "immortalwrt/homeproxy" "master" "name" "homeproxy" "" "homeproxy"
 	bash "$GITHUB_WORKSPACE/Scripts/PatchHomeProxyModern.sh" "luci-app-homeproxy"
 fi
 if grep -qs '^CONFIG_PACKAGE_luci-app-wechatpush=y$' "${CONFIG_FILES[@]}"; then
