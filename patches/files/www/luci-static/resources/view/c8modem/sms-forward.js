@@ -168,6 +168,20 @@ function dependsType(option, type) {
 	option.depends('type', type);
 }
 
+function withBusyButton(ev, task) {
+	const button = ev && (ev.currentTarget || ev.target);
+
+	if (button && button.disabled)
+		return Promise.resolve();
+	if (button)
+		button.disabled = true;
+
+	return Promise.resolve().then(task).finally(function() {
+		if (button)
+			button.disabled = false;
+	});
+}
+
 return view.extend({
 	load: function() {
 		return Promise.all([
@@ -274,13 +288,15 @@ return view.extend({
 		o.inputtitle = _('发送测试通知');
 		o.inputstyle = 'apply';
 		o.depends('forward_enable', '1');
-		o.onclick = function() {
-			return m.save().then(function() {
-				return fs.exec('/usr/bin/c8-sms-forward', [ 'test' ]);
-			}).then(function(res) {
-				ui.addNotification(null, E('p', (res.stdout || '').trim() || _('测试命令已执行')));
-			}).catch(function(e) {
-				ui.addNotification(null, E('p', e.message));
+		o.onclick = function(ev) {
+			return withBusyButton(ev, function() {
+				return m.save().then(function() {
+					return fs.exec('/usr/bin/c8-sms-forward', [ 'test' ]);
+				}).then(function(res) {
+					ui.addNotification(null, E('p', (res.stdout || '').trim() || _('测试命令已执行')));
+				}).catch(function(e) {
+					ui.addNotification(null, E('p', e.message));
+				});
 			});
 		};
 
@@ -288,13 +304,15 @@ return view.extend({
 		o.inputtitle = _('扫描并转发');
 		o.inputstyle = 'apply';
 		o.depends('forward_enable', '1');
-		o.onclick = function() {
-			return m.save().then(function() {
-				return fs.exec('/usr/bin/c8-sms-forward', [ 'once' ]);
-			}).then(function() {
-				ui.addNotification(null, E('p', _('已执行一次短信转发扫描。')));
-			}).catch(function(e) {
-				ui.addNotification(null, E('p', e.message));
+		o.onclick = function(ev) {
+			return withBusyButton(ev, function() {
+				return m.save().then(function() {
+					return fs.exec('/usr/bin/c8-sms-forward', [ 'once' ]);
+				}).then(function() {
+					ui.addNotification(null, E('p', _('已执行一次短信转发扫描。')));
+				}).catch(function(e) {
+					ui.addNotification(null, E('p', e.message));
+				});
 			});
 		};
 
@@ -345,14 +363,16 @@ return view.extend({
 		o = s.taboption('logs', form.Button, '_forward_clear_log', _('清空日志'));
 		o.inputtitle = _('清空日志');
 		o.inputstyle = 'remove';
-		o.onclick = function() {
+		o.onclick = function(ev) {
 			if (!confirm(_('确认清空短信转发日志？')))
 				return Promise.resolve();
 
-			return fs.exec('/usr/bin/c8-sms-forward', [ 'clear-log' ]).then(function() {
-				ui.addNotification(null, E('p', _('日志已清空。')));
-			}).catch(function(e) {
-				ui.addNotification(null, E('p', e.message));
+			return withBusyButton(ev, function() {
+				return fs.exec('/usr/bin/c8-sms-forward', [ 'clear-log' ]).then(function() {
+					ui.addNotification(null, E('p', _('日志已清空。')));
+				}).catch(function(e) {
+					ui.addNotification(null, E('p', e.message));
+				});
 			});
 		};
 
@@ -399,10 +419,12 @@ return view.extend({
 				'class': 'cbi-button cbi-button-apply',
 				'click': function(ev) {
 					ev.preventDefault();
-					return fs.exec('/usr/bin/c8-sms-forward', [ 'test-channel', section_id ]).then(function(res) {
-						ui.addNotification(null, E('p', (res.stdout || '').trim() || _('测试命令已执行')));
-					}).catch(function(e) {
-						ui.addNotification(null, E('p', e.message));
+					return withBusyButton(ev, function() {
+						return fs.exec('/usr/bin/c8-sms-forward', [ 'test-channel', section_id ]).then(function(res) {
+							ui.addNotification(null, E('p', (res.stdout || '').trim() || _('测试命令已执行')));
+						}).catch(function(e) {
+							ui.addNotification(null, E('p', e.message));
+						});
 					});
 				}
 			}, _('测试'));

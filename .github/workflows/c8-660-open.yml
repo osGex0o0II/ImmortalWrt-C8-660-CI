@@ -182,6 +182,7 @@ jobs:
           set -euo pipefail
 
           bash "$GITHUB_WORKSPACE/Scripts/TestC8SmsForward.sh"
+          bash "$GITHUB_WORKSPACE/Scripts/TestC8SmsForwardLuCI.sh"
           TMP_WRT="$(mktemp -d)"
           trap 'rm -rf "$TMP_WRT"' EXIT
           bash "$GITHUB_WORKSPACE/Scripts/InstallC8Overlay.sh" "$TMP_WRT"
