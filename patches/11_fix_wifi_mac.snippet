@@ -1,10 +1,16 @@
 	nradio,wt9103)
-		local hw_mac=""
 		hw_mac=$(mtd_get_mac_ascii bdinfo fac_mac 2>/dev/null)
 		[ -n "$hw_mac" ] && [ "$hw_mac" != "00:00:00:00:00:00" ] || \
 			hw_mac=$(mtd_get_mac_ascii bdinfo "fac_mac ")
 		[ -n "$hw_mac" ] && [ "$hw_mac" != "00:00:00:00:00:00" ] || \
-			hw_mac=$(macaddr_random)
+			hw_mac=$(cat /sys/class/net/eth1/address 2>/dev/null)
+		[ -n "$hw_mac" ] && [ "$hw_mac" != "00:00:00:00:00:00" ] || \
+			hw_mac=$(cat /sys/class/net/eth0/address 2>/dev/null)
+		if [ -z "$hw_mac" ] || [ "$hw_mac" = "00:00:00:00:00:00" ]; then
+			logger -t c8-wifi-mac "no stable base MAC found for $DEVPATH"
+			exit 0
+		fi
 		[ "$PHYNBR" = "0" ] && macaddr_add "$hw_mac" 2 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add "$hw_mac" 3 > /sys${DEVPATH}/macaddress
+		logger -t c8-wifi-mac "phy$PHYNBR base MAC $hw_mac applied"
 		;;

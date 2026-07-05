@@ -132,11 +132,17 @@ REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "network\\.wa
 REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "dhcp\\.lan\\.dhcpv6='relay'" "IPv6 relay for cellular /64"
 REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "network\\.globals\\.packet_steering='1'" "packet steering default"
 REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "firewall\\.@defaults\\[0\\]\\.flow_offloading_hw='1'" "hardware flow offloading default"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "wireless\\.default_radio0\\.macaddr" "stable 2.4G WiFi MAC default"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "wireless\\.default_radio1\\.macaddr" "stable 5G WiFi MAC default"
 REQUIRE_PATTERN "$OVERLAY_DST/www/luci-static/resources/view/c8modem/sms-forward.js" "forward_primary_channel" "SMS primary/backup channel UI"
 REQUIRE_PATTERN "$OVERLAY_DST/www/luci-static/resources/view/c8modem/sms-forward.js" "sms_tool_timeout" "SMS timeout UI"
 REQUIRE_PATTERN "$OVERLAY_DST/www/luci-static/resources/view/c8modem/sms-read.js" "SMS_EXEC_TIMEOUT" "SMS read UI timeout guard"
 REQUIRE_PATTERN "$OVERLAY_DST/usr/bin/c8-sms-forward" "run_sms_tool" "SMS backend timeout guard"
 REJECT_PATTERN "$OVERLAY_DST/usr/bin/c8-sms-forward" "wechatpush\\.config" "WeChatPush fallback in SMS backend"
+REQUIRE_PATTERN "$OVERLAY_DST/usr/share/modem/rm520n.sh" "qmap_ipv4" "RM520N QMAP IPv4 parser"
+REQUIRE_PATTERN "$OVERLAY_DST/usr/share/modem/rm520n.sh" "eth1 MAC mismatch" "RM520N eth1/IPPT MAC guard"
+REQUIRE_PATTERN "$OVERLAY_DST/usr/share/modem/rm520n.sh" "wait_interface_up wan" "RM520N eth1 DHCP readiness check"
+REQUIRE_PATTERN "$OVERLAY_DST/usr/share/modem/rm520n.sh" "WAN is up but HTTP 204 connectivity checks failed" "RM520N preserves WAN for diagnostics"
 
 LOG "Fixing executable permissions for C8 overlay files"
 find "$OVERLAY_DST" -type f \( \

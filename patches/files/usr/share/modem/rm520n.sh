@@ -83,6 +83,109 @@
         ip link set dev eth1 address "$mac" 2>/dev/null || true
     }
 
+    qmap_ipv4() {
+        sendat 2 'AT+QMAP="wwan"' | sed -n 's/.*"IPV4","\([0-9.]*\)".*/\1/p' | head -1 | tr -d '\r\n'
+    }
+
+    qmap_ipv6() {
+        sendat 2 'AT+QMAP="wwan"' | sed -n 's/.*"IPV6","\([^"]*\)".*/\1/p' | head -1 | tr -d '\r\n'
+    }
+
+    ifstatus_field() {
+        local ifname="$1"
+        local field="$2"
+
+        ifstatus "$ifname" 2>/dev/null | jsonfilter -e "@.$field" 2>/dev/null
+    }
+
+    eth1_mac() {
+        cat /sys/class/net/eth1/address 2>/dev/null | tr 'A-F' 'a-f' | tr -d '\r\n'
+    }
+
+    wait_interface_up() {
+        local ifname="$1"
+        local max_wait="${2:-30}"
+        local waited=0
+        local up ip4
+
+        while [ "$waited" -lt "$max_wait" ]; do
+            up="$(ifstatus_field "$ifname" up)"
+            ip4="$(ifstatus "$ifname" 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)"
+            if [ "$up" = "true" ] && valid_ip "$ip4"; then
+                printMsg "$ifname is up with IPv4 $ip4"
+                return 0
+            fi
+            sleep 1
+            waited=$((waited + 1))
+        done
+
+        printMsg "$ifname did not become ready within ${max_wait}s"
+        ifstatus "$ifname" 2>/dev/null | logger -t "${PROGRAM}_${ifname}" || true
+        return 1
+    }
+
+    ensure_eth1_mac() {
+        local mac="$1"
+        local current
+
+        valid_mac "$mac" || return 1
+        current="$(eth1_mac)"
+        if [ "$current" = "$mac" ]; then
+            return 0
+        fi
+
+        printMsg "eth1 MAC mismatch: current ${current:-none}, expected $mac; restoring"
+        ip link set dev eth1 down 2>/dev/null || true
+        sleep 1
+        ip link set dev eth1 address "$mac" 2>/dev/null || return 1
+        sleep 1
+        ip link set dev eth1 up 2>/dev/null || true
+        sleep 5
+        current="$(eth1_mac)"
+        if [ "$current" != "$mac" ]; then
+            printMsg "eth1 MAC still ${current:-none}; retrying restore once"
+            ip link set dev eth1 down 2>/dev/null || true
+            sleep 1
+            ip link set dev eth1 address "$mac" 2>/dev/null || return 1
+            ip link set dev eth1 up 2>/dev/null || true
+            sleep 5
+        fi
+
+        current="$(eth1_mac)"
+        if [ "$current" != "$mac" ]; then
+            printMsg "eth1 MAC restore failed: current ${current:-none}, expected $mac"
+            return 1
+        fi
+
+        printMsg "eth1 MAC restored to $mac"
+        return 0
+    }
+
+    restart_wan_proto() {
+        printMsg "Restarting WAN DHCP protocol on eth1"
+        /sbin/ifdown wan6 2>/dev/null || true
+        /sbin/ifdown wan 2>/dev/null || true
+        sleep 1
+        /sbin/ifup wan 2>/dev/null || true
+        /sbin/ifup wan6 2>/dev/null || true
+    }
+
+    finalize_wan_success() {
+        printMsg "IPV4 WAN UP! Ready to go Internet."
+        rm -f "$lock_file"
+        if [ "$AutoFreqLock" -eq 1 ]; then
+            printMsg "Auto Freq Lock ACTIVATED"
+            /usr/share/modem/autofreqlock.sh &
+        else
+            printMsg "Auto Freq Lock DEACTIVATED"
+            killall autofreqlock.sh 2>/dev/null || true
+        fi
+
+        /usr/share/modem/enableipv6.sh
+        /usr/share/modem/ipcheck.sh &
+        exit 0
+    }
+
     # 检查是否存在锁文件 @Icey
     lock_file="/tmp/rm520n.lock"
 
@@ -613,64 +716,71 @@
 
     #Check if wan work
     check_and_activate_wan() {
-    max_retries=60
-    retry_interval=3
-    retries=0
+        max_retries=60
+        retry_interval=3
+        retries=0
+        wan_ready=0
+        mac_address="$(wan_mac)"
+        valid_mac "$mac_address" || {
+            printMsg "Job is FAILURE: unable to derive WAN MAC before data activation"
+            echo "无法读取 WAN MAC，蜂窝 WAN 初始化停止。" >/tmp/simcardstat
+            exit 1
+        }
+        apply_wan_mac "$mac_address"
 
-    while [ "$retries" -lt "$max_retries" ]; do
-            sendat 2  'AT+QMAP="connect",0,1'
+        while [ "$retries" -lt "$max_retries" ]; do
+            sendat 2 'AT+QMAP="connect",0,1'
             sleep 1
-            ipv4_info=$(sendat 2 'at+qmap="wwan"' | grep IPV4|awk -F \" {'print $6'}|tr -d '\r\n')
-            printMsg "Modem ip is now $ipv4_info"
-        if [ -z "$ipv4_info" ] || ! valid_ip "$ipv4_info" ; then
-            printMsg "Retry $((retries + 1)): IPv4 address not obtained or invalid. Retrying in $retry_interval seconds..."
-            sleep 1
-            sleep "$retry_interval"
-            retries=$((retries + 1))
-        else
-            /sbin/ifup wan
-            /sbin/ifup wan6
-            wantstcount=0
-            while [ $wantstcount -lt 20 ]; do
-                http_codeChk0=$(curl -o /dev/null -s -w %{http_code} http://connect.rom.miui.com/generate_204)
-                http_codeChk1=$(curl -o /dev/null -s -w %{http_code} http://connectivitycheck.platform.hicloud.com/generate_204)
-
-                if [ "$http_codeChk0" -eq 204 ] || [ "$http_codeChk1" -eq 204 ]; then
-                    /usr/share/modem/netmodeled.sh &
-                    printMsg "Internet Connection Ready."
-                    break
-                else
-                    printMsg "HTTP status code is not 204 for either URL. Retry $((wantstcount + 1))."
-                fi
-                sleep 2
-                wantstcount=$((wantstcount + 1))
-                if [ "$wantstcount" -eq 20 ]; then
-                    printMsg "Failed to Init Modem after $wantstcount"
-                    exit 1
-                fi
-            done
-            printMsg "IPV4 WAN UP!Ready to go Internet!"
-            rm $lock_file
-            if [ "$AutoFreqLock" -eq 1 ]; then 
-                printMsg "Auto Freq Lock ACTIVATED"
-                /usr/share/modem/autofreqlock.sh&
-            else
-                printMsg "Auto Freq Lock DEACTIVATED"
-                killall autofreqlock.sh
+            ipv4_info="$(qmap_ipv4)"
+            ipv6_info="$(qmap_ipv6)"
+            printMsg "Modem IPv4 is now ${ipv4_info:-none}; IPv6 is ${ipv6_info:-none}"
+            if [ -z "$ipv4_info" ] || ! valid_ip "$ipv4_info"; then
+                printMsg "Retry $((retries + 1)): IPv4 address not obtained or invalid. Retrying in $retry_interval seconds..."
+                sleep "$retry_interval"
+                retries=$((retries + 1))
+                continue
             fi
 
-            /usr/share/modem/enableipv6.sh 
-            /usr/share/modem/ipcheck.sh &
-            exit 0
+            ensure_eth1_mac "$mac_address" || {
+                printMsg "Job is FAILURE: eth1 MAC does not match RM520N IPPT MAC $mac_address"
+                echo "WAN MAC 与模块 IPPT MAC 不一致，已停止初始化以避免链路不稳定。" >/tmp/simcardstat
+                exit 1
+            }
+            restart_wan_proto
+            if wait_interface_up wan 30; then
+                wan_ready=1
+                break
+            fi
+
+            printMsg "WAN DHCP did not follow modem IPv4 $ipv4_info; retrying data path"
+            retries=$((retries + 1))
+            sleep "$retry_interval"
+        done
+
+        if [ "$wan_ready" != "1" ]; then
+            printMsg "Job is FAILURE: modem has IPv4 '${ipv4_info:-none}' but eth1 DHCP did not come up after $max_retries retries"
+            echo "蜂窝模块已获取IP但路由器WAN口DHCP未完成，请检查RM520N RGMII/IPPT链路。" >/tmp/simcardstat
+            exit 1
         fi
-    done
 
-    if [ "$retries" -eq "$max_retries" ]; then
-        printMsg "Failed to obtain valid IPv4 address after $max_retries retries. Exiting program." >>/tmp/moduleInit
-        printMsg "Job is FAILURE"
+        wantstcount=0
+        while [ $wantstcount -lt 20 ]; do
+            http_codeChk0=$(curl -o /dev/null -s -m 6 -w '%{http_code}' http://connect.rom.miui.com/generate_204)
+            http_codeChk1=$(curl -o /dev/null -s -m 6 -w '%{http_code}' http://connectivitycheck.platform.hicloud.com/generate_204)
 
-        exit 1
-    fi
+            if [ "$http_codeChk0" = 204 ] || [ "$http_codeChk1" = 204 ]; then
+                /usr/share/modem/netmodeled.sh &
+                printMsg "Internet Connection Ready."
+                finalize_wan_success
+            fi
+
+            printMsg "HTTP connectivity check returned ${http_codeChk0:-none}/${http_codeChk1:-none}; retry $((wantstcount + 1))."
+            sleep 2
+            wantstcount=$((wantstcount + 1))
+        done
+
+        printMsg "WAN is up but HTTP 204 connectivity checks failed; leaving WAN active for diagnostics"
+        finalize_wan_success
     }
 
     valid_ip() {

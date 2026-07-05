@@ -83,6 +83,8 @@ base_mac="$(mtd_get_mac_ascii bdinfo fac_mac 2>/dev/null)"
 case "$base_mac" in
 	[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f])
 		wan_mac="$(macaddr_add "$base_mac" 1)"
+		wifi2_mac="$(macaddr_add "$base_mac" 2)"
+		wifi5_mac="$(macaddr_add "$base_mac" 3)"
 		uci -q set network.wan.macaddr="$wan_mac"
 		uci -q set network.wan6.macaddr="$wan_mac"
 
@@ -96,6 +98,8 @@ case "$base_mac" in
 				;;
 			esac
 		done
+		uci -q set wireless.default_radio0.macaddr="$wifi2_mac"
+		uci -q set wireless.default_radio1.macaddr="$wifi5_mac"
 	;;
 esac
 for section in $(uci -q show network | sed -n "s/^\(network\.[^.]*\)=device$/\1/p"); do
