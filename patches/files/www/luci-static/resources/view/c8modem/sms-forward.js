@@ -168,6 +168,29 @@ function dependsType(option, type) {
 	option.depends('type', type);
 }
 
+function printable(maxlen) {
+	return function(section_id, value) {
+		value = (value || '').trim();
+		if (value === '' || (/^[^\r\n\0<>]+$/.test(value) && value.length <= maxlen))
+			return true;
+		return _('包含无效字符或长度过长');
+	};
+}
+
+function validateUrl(section_id, value) {
+	value = (value || '').trim();
+	if (value === '' || /^https?:\/\/[^\s"'<>]+$/i.test(value))
+		return true;
+	return _('请输入以 http:// 或 https:// 开头的有效地址');
+}
+
+function validateProxy(section_id, value) {
+	value = (value || '').trim();
+	if (value === '' || /^(https?|socks5h?):\/\/[^\s"'<>]+$/i.test(value))
+		return true;
+	return _('请输入有效代理地址，例如 http://127.0.0.1:7890');
+}
+
 function withBusyButton(ev, task) {
 	const button = ev && (ev.currentTarget || ev.target);
 
@@ -348,6 +371,7 @@ return view.extend({
 
 		o = s.taboption('advanced', form.Value, 'forward_proxy', _('网络代理'));
 		o.placeholder = 'http://127.0.0.1:7890';
+		o.validate = validateProxy;
 
 		o = s.taboption('logs', form.DummyValue, '_forward_log', _('最近日志'));
 		o.cfgvalue = function() {
@@ -394,6 +418,7 @@ return view.extend({
 		o = c.option(form.Value, 'name', _('名称'));
 		o.rmempty = false;
 		o.modalonly = true;
+		o.validate = printable(32);
 
 		o = c.option(form.ListValue, 'type', _('类型'));
 		addTypeValues(o);
@@ -402,6 +427,7 @@ return view.extend({
 
 		o = c.option(form.Value, 'remark', _('备注'));
 		o.modalonly = false;
+		o.validate = printable(80);
 
 		o = c.option(form.DummyValue, '_ready', _('状态'));
 		o.cfgvalue = function(section_id) {
@@ -420,7 +446,9 @@ return view.extend({
 				'click': function(ev) {
 					ev.preventDefault();
 					return withBusyButton(ev, function() {
-						return fs.exec('/usr/bin/c8-sms-forward', [ 'test-channel', section_id ]).then(function(res) {
+						return m.save().then(function() {
+							return fs.exec('/usr/bin/c8-sms-forward', [ 'test-channel', section_id ]);
+						}).then(function(res) {
 							ui.addNotification(null, E('p', (res.stdout || '').trim() || _('测试命令已执行')));
 						}).catch(function(e) {
 							ui.addNotification(null, E('p', e.message));
@@ -457,6 +485,7 @@ return view.extend({
 		o.placeholder = 'https://api.telegram.org';
 		o.default = 'https://api.telegram.org';
 		o.modalonly = true;
+		o.validate = validateUrl;
 		dependsType(o, 'telegram');
 
 		o = c.option(form.Value, 'bot_token', _('Telegram Bot Token'));
@@ -510,6 +539,7 @@ return view.extend({
 		o = c.option(form.Value, 'url', _('Webhook 地址'));
 		o.placeholder = 'https://example.com/webhook';
 		o.modalonly = true;
+		o.validate = validateUrl;
 		dependsType(o, 'diy');
 
 		return m.render();
