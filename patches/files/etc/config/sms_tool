@@ -17,6 +17,7 @@ config sms_tool 'general'
         option forward_backup_channel 'backup_telegram'
         option forward_retry_count '1'
         option forward_retry_delay '3'
+        option sms_tool_timeout '20'
         option forward_proxy ''
 
 config forward_channel 'ops_pushplus'

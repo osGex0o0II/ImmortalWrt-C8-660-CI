@@ -32,6 +32,19 @@ REQUIRE_PATTERN() {
 	LOG "VERIFIED: $DESC"
 }
 
+REJECT_PATTERN() {
+	local FILE="$1"
+	local PATTERN="$2"
+	local DESC="$3"
+
+	REQUIRE_FILE "$FILE"
+	if grep -Eq "$PATTERN" "$FILE"; then
+		LOG "ERROR: unexpected overlay content ($DESC): $FILE"
+		return 1
+	fi
+	LOG "VERIFIED ABSENT: $DESC"
+}
+
 if [ ! -d "$OVERLAY_SRC" ]; then
 	LOG "ERROR: overlay source directory not found: $OVERLAY_SRC"
 	exit 1
@@ -99,8 +112,23 @@ REQUIRE_PATTERN "$OVERLAY_DST/usr/share/luci/menu.d/luci-app-c8modem.json" '"adm
 REQUIRE_PATTERN "$OVERLAY_DST/usr/share/rpcd/acl.d/luci-app-c8modem.json" '"/usr/bin/c8-sms-forward \*"' "C8 SMS forwarding RPC permission"
 REQUIRE_PATTERN "$OVERLAY_DST/usr/share/rpcd/acl.d/luci-app-c8modem.json" '"/usr/bin/cellscan.sh \*"' "C8 base station scan RPC permission"
 REQUIRE_PATTERN "$OVERLAY_DST/etc/config/modem" "option simsel '0'" "external SIM default"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/config/modem" "option enable '1'" "cellular modem enabled by default"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/config/sms_tool" "option readport '/dev/ttyUSB2'" "SMS read port default"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/config/sms_tool" "option sendport '/dev/ttyUSB2'" "SMS send port default"
 REQUIRE_PATTERN "$OVERLAY_DST/etc/config/sms_tool" "config forward_channel" "SMS forwarding channel config"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/config/sms_tool" "config forward_channel 'ops_pushplus'" "primary SMS forwarding channel"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/config/sms_tool" "config forward_channel 'backup_telegram'" "backup SMS forwarding channel"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/config/sms_tool" "sms_tool_timeout" "SMS tool timeout default"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "network\\.wan\\.device='eth1'" "cellular WAN on eth1"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "network\\.wan6\\.proto='dhcpv6'" "cellular IPv6 DHCPv6"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "dhcp\\.lan\\.dhcpv6='relay'" "IPv6 relay for cellular /64"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "network\\.globals\\.packet_steering='1'" "packet steering default"
+REQUIRE_PATTERN "$OVERLAY_DST/etc/uci-defaults/99-v12-defaults.sh" "firewall\\.@defaults\\[0\\]\\.flow_offloading_hw='1'" "hardware flow offloading default"
 REQUIRE_PATTERN "$OVERLAY_DST/www/luci-static/resources/view/c8modem/sms-forward.js" "forward_primary_channel" "SMS primary/backup channel UI"
+REQUIRE_PATTERN "$OVERLAY_DST/www/luci-static/resources/view/c8modem/sms-forward.js" "sms_tool_timeout" "SMS timeout UI"
+REQUIRE_PATTERN "$OVERLAY_DST/www/luci-static/resources/view/c8modem/sms-read.js" "SMS_EXEC_TIMEOUT" "SMS read UI timeout guard"
+REQUIRE_PATTERN "$OVERLAY_DST/usr/bin/c8-sms-forward" "run_sms_tool" "SMS backend timeout guard"
+REJECT_PATTERN "$OVERLAY_DST/usr/bin/c8-sms-forward" "wechatpush\\.config" "WeChatPush fallback in SMS backend"
 
 LOG "Fixing executable permissions for C8 overlay files"
 find "$OVERLAY_DST" -type f \( \

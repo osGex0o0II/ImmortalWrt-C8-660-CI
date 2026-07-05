@@ -4,6 +4,27 @@
 'require uci';
 'require ui';
 
+const SMS_EXEC_TIMEOUT = 15000;
+
+function execWithTimeout(cmd, args, timeout, label) {
+	let timer;
+
+	return Promise.race([
+		fs.exec(cmd, args).then(function(res) {
+			clearTimeout(timer);
+			return res;
+		}, function(err) {
+			clearTimeout(timer);
+			throw err;
+		}),
+		new Promise(function(resolve, reject) {
+			timer = setTimeout(function() {
+				reject(new Error(_('%s 执行超时，请确认 SIM 卡、短信端口和模组 AT 响应正常。').format(label)));
+			}, timeout);
+		})
+	]);
+}
+
 function parseStatus(text, storage) {
 	const match = String(text || '').match(/Storage type:\s*([^,\s]+),\s*used:\s*(\d+),\s*total:\s*(\d+)/);
 
@@ -26,8 +47,8 @@ function smsConfig() {
 function readMessages() {
 	return smsConfig().then(function(cfg) {
 		return Promise.all([
-			fs.exec('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, 'status' ]),
-			fs.exec('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, '-f', '%Y-%m-%d %H:%M', '-j', 'recv' ])
+			execWithTimeout('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, 'status' ], SMS_EXEC_TIMEOUT, _('短信状态读取')),
+			execWithTimeout('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, '-f', '%Y-%m-%d %H:%M', '-j', 'recv' ], SMS_EXEC_TIMEOUT, _('短信列表读取'))
 		]).then(function(res) {
 			let parsed = {};
 			try {
@@ -170,7 +191,7 @@ return view.extend({
 			return data[0];
 		}).catch(function(e) {
 			ui.addNotification(null, E('p', e.message));
-			return { ok: false, status: {}, messages: [] };
+			return { ok: false, error: e.message, status: {}, messages: [] };
 		});
 	},
 
@@ -237,6 +258,7 @@ return view.extend({
 			return E('div', { 'class': 'cbi-map' }, [
 				E('h2', _('短信接收')),
 				E('fieldset', { 'class': 'cbi-section' }, [
+					data.ok === false ? E('div', { 'class': 'cbi-section-descr alert-message warning' }, data.error || _('短信读取失败')) : '',
 					E('div', { 'class': 'cbi-value' }, [
 						E('label', { 'class': 'cbi-value-title' }, _('短信统计')),
 						E('div', { 'class': 'cbi-value-field' }, statusNodes(rows.length))
@@ -311,7 +333,7 @@ return view.extend({
 				let chain = Promise.resolve();
 				sortedIndexes(indexes, true).forEach(function(index) {
 					chain = chain.then(function() {
-						return fs.exec('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, 'delete', index ]);
+						return execWithTimeout('/usr/bin/sms_tool', [ '-s', cfg.storage, '-d', cfg.port, 'delete', index ], SMS_EXEC_TIMEOUT, _('删除短信'));
 					});
 				});
 				return chain;

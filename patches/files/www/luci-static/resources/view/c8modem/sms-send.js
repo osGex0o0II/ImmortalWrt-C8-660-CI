@@ -4,6 +4,27 @@
 'require uci';
 'require ui';
 
+const SMS_SEND_TIMEOUT = 60000;
+
+function execWithTimeout(cmd, args, timeout, label) {
+	let timer;
+
+	return Promise.race([
+		fs.exec(cmd, args).then(function(res) {
+			clearTimeout(timer);
+			return res;
+		}, function(err) {
+			clearTimeout(timer);
+			throw err;
+		}),
+		new Promise(function(resolve, reject) {
+			timer = setTimeout(function() {
+				reject(new Error(_('%s 执行超时，请确认 SIM 卡、短信端口、余额和模组 AT 响应正常。').format(label)));
+			}, timeout);
+		})
+	]);
+}
+
 function validNumber(value) {
 	value = (value || '').replace(/\s+/g, '').replace(/^\+/, '');
 	if (/^\d{2,20}$/.test(value))
@@ -58,7 +79,7 @@ return view.extend({
 			}
 
 			output.textContent = _('发送中...');
-			return fs.exec('/usr/bin/sms_tool', [ '-d', port, 'send', nr, msg ]).then(function(res) {
+			return execWithTimeout('/usr/bin/sms_tool', [ '-d', port, 'send', nr, msg ], SMS_SEND_TIMEOUT, _('短信发送')).then(function(res) {
 				const result = [ res.stdout || '', res.stderr || '' ].join('\n').trim();
 				output.textContent = result || '-';
 				if (/sent|CMGS|OK/i.test(result)) {

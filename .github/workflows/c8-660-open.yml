@@ -177,6 +177,19 @@ jobs:
           find ./ -maxdepth 3 -type f -iname "*.txt" -exec dos2unix {} \;
           find ./ -maxdepth 3 -type f -iname "*.mk" -exec dos2unix {} \;
 
+      - name: Validate C8 SMS Overlay
+        run: |
+          set -euo pipefail
+
+          bash "$GITHUB_WORKSPACE/Scripts/TestC8SmsForward.sh"
+          TMP_WRT="$(mktemp -d)"
+          trap 'rm -rf "$TMP_WRT"' EXIT
+          bash "$GITHUB_WORKSPACE/Scripts/InstallC8Overlay.sh" "$TMP_WRT"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-read.js"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-send.js"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-settings.js"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-forward.js"
+
       - name: Check Caches
         id: check-cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
@@ -220,6 +233,22 @@ jobs:
 
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+
+      - name: Load Proxy Locks
+        run: |
+          set -euo pipefail
+
+          LOCK_FILE="$GITHUB_WORKSPACE/.github/proxy-locks.env"
+          if [ ! -f "$LOCK_FILE" ]; then
+            echo "::error::proxy lock file not found: $LOCK_FILE"
+            exit 1
+          fi
+
+          cat "$LOCK_FILE" >> "$GITHUB_ENV"
+
+      - name: Apply sing-box lock
+        run: |
+          bash "$GITHUB_WORKSPACE/Scripts/ApplyProxyLocks.sh" ./wrt/
 
       - name: Patch LuCI JS (fix formatStats crash)
         run: |
@@ -542,9 +571,6 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/zerotier/config\.js' 'LuCI ZeroTier config page'
           require_rootfs 'etc/init\.d/zerotier' 'ZeroTier init service'
           require_rootfs 'usr/bin/zerotier-one' 'ZeroTier daemon'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-wechatpush\.json' 'LuCI WeChatPush app'
-          require_rootfs 'www/luci-static/resources/view/wechatpush/config\.js' 'LuCI WeChatPush config page'
-          require_rootfs 'usr/share/wechatpush/wechatpush' 'WeChatPush backend script'
           require_rootfs 'usr/bin/sing-box' 'sing-box proxy core'
           require_rootfs 'etc/init\.d/homeproxy' 'HomeProxy init service'
           require_rootfs 'etc/config/homeproxy' 'HomeProxy UCI config'
@@ -571,6 +597,27 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-settings\.js' 'C8 SMS JS settings page'
           require_rootfs 'www/luci-static/resources/view/status(.*/)?10_system\.js' 'LuCI system status JS'
 
+          SMS_TOOL_CONFIG="$("$UNSQUASHFS" -cat "$ROOTFS" etc/config/sms_tool)"
+          if ! printf '%s' "$SMS_TOOL_CONFIG" | grep -q 'sms_tool_timeout'; then
+            echo "::error::sms_tool config is missing sms_tool_timeout"
+            exit 1
+          fi
+          SMS_FORWARD_SCRIPT="$("$UNSQUASHFS" -cat "$ROOTFS" usr/bin/c8-sms-forward)"
+          if ! printf '%s' "$SMS_FORWARD_SCRIPT" | grep -q 'run_sms_tool'; then
+            echo "::error::C8 SMS forwarding backend is missing sms_tool timeout guard"
+            exit 1
+          fi
+          if printf '%s' "$SMS_FORWARD_SCRIPT" | grep -q 'wechatpush\.config'; then
+            echo "::error::C8 SMS forwarding backend still reads standalone WeChatPush config"
+            exit 1
+          fi
+          SMS_READ_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/view/c8modem/sms-read.js)"
+          if ! printf '%s' "$SMS_READ_JS" | grep -q 'SMS_EXEC_TIMEOUT'; then
+            echo "::error::C8 SMS read page is missing command timeout guard"
+            exit 1
+          fi
+          echo "OK: C8 SMS timeout guards and WeChatPush isolation are enforced"
+
           reject_rootfs() {
             local pattern="$1"
             local desc="$2"
@@ -592,6 +639,10 @@ jobs:
           reject_rootfs 'usr/lib/lua/luci/view/modem/readsms\.htm' 'legacy LuCI read SMS view'
           reject_rootfs 'usr/lib/lua/luci/view/modem/sendsms\.htm' 'legacy LuCI send SMS view'
           reject_rootfs 'usr/share/rpcd/acl\.d/luci-app-sms-tool\.json' 'legacy LuCI SMS ACL'
+          reject_rootfs 'usr/share/luci/menu\.d/luci-app-wechatpush\.json' 'standalone WeChatPush LuCI app'
+          reject_rootfs 'www/luci-static/resources/view/wechatpush/' 'standalone WeChatPush views'
+          reject_rootfs 'usr/share/wechatpush/' 'standalone WeChatPush backend'
+          reject_rootfs 'etc/config/wechatpush' 'standalone WeChatPush config'
           reject_rootfs 'usr/bin/xray' 'legacy xray proxy core'
           reject_rootfs 'usr/bin/v2ray' 'legacy v2ray proxy core'
           reject_rootfs 'usr/bin/mihomo' 'legacy mihomo proxy core'
@@ -657,6 +708,44 @@ jobs:
             exit 1
           fi
           echo "OK: modem default SIM is external"
+
+          MODEM_CONFIG="$("$UNSQUASHFS" -cat "$ROOTFS" etc/config/modem)"
+          if ! printf '%s' "$MODEM_CONFIG" | grep -q "option enable '1'"; then
+            echo "::error::modem is not enabled by default"
+            exit 1
+          fi
+          if ! printf '%s' "$SMS_TOOL_CONFIG" | grep -q "option readport '/dev/ttyUSB2'"; then
+            echo "::error::SMS read port default is missing"
+            exit 1
+          fi
+          if ! printf '%s' "$SMS_TOOL_CONFIG" | grep -q "option sendport '/dev/ttyUSB2'"; then
+            echo "::error::SMS send port default is missing"
+            exit 1
+          fi
+          if ! printf '%s' "$SMS_TOOL_CONFIG" | grep -q "config forward_channel 'ops_pushplus'"; then
+            echo "::error::primary SMS forwarding channel is missing"
+            exit 1
+          fi
+          if ! printf '%s' "$SMS_TOOL_CONFIG" | grep -q "config forward_channel 'backup_telegram'"; then
+            echo "::error::backup SMS forwarding channel is missing"
+            exit 1
+          fi
+
+          C8_DEFAULTS="$("$UNSQUASHFS" -cat "$ROOTFS" etc/uci-defaults/99-v12-defaults.sh)"
+          for REQUIRED_DEFAULT in \
+            "network.wan.device='eth1'" \
+            "network.wan.proto='dhcp'" \
+            "network.wan6.proto='dhcpv6'" \
+            "dhcp.lan.dhcpv6='relay'" \
+            "network.globals.packet_steering='1'" \
+            "firewall.@defaults[0].flow_offloading_hw='1'"
+          do
+            if ! printf '%s' "$C8_DEFAULTS" | grep -Fq "$REQUIRED_DEFAULT"; then
+              echo "::error::C8 default network setting missing: $REQUIRED_DEFAULT"
+              exit 1
+            fi
+          done
+          echo "OK: C8 cellular WAN, IPv6 relay, DNS/DHCP path, and SMS channel defaults are present"
 
       - name: Cleanup Old Releases
         if: ${{ inputs.publish_release }}

@@ -314,6 +314,12 @@ return view.extend({
 		o.default = '3';
 		o.rmempty = false;
 
+		o = s.taboption('advanced', form.Value, 'sms_tool_timeout', _('短信读取超时'));
+		o.datatype = 'and(uinteger,range(5,120))';
+		o.placeholder = '20';
+		o.default = '20';
+		o.rmempty = false;
+
 		o = s.taboption('advanced', form.Flag, 'forward_complete_only', _('只转发完整长短信'));
 		o.default = '1';
 		o.rmempty = false;

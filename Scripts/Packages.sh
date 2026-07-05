@@ -139,9 +139,6 @@ if [[ "${WRT_CONFIG:-}" != *CLOSED* ]] && grep -qs '^CONFIG_PACKAGE_luci-app-hom
 	UPDATE_PACKAGE "luci-app-homeproxy" "immortalwrt/homeproxy" "master" "name" "homeproxy" "" "homeproxy"
 	bash "$GITHUB_WORKSPACE/Scripts/PatchHomeProxyModern.sh" "luci-app-homeproxy"
 fi
-if grep -qs '^CONFIG_PACKAGE_luci-app-wechatpush=y$' "${CONFIG_FILES[@]}"; then
-	UPDATE_PACKAGE "luci-app-wechatpush" "tty228/luci-app-wechatpush" "master" "" "wechatpush" "" "wechatpush"
-fi
 
 #引入私有扩展脚本
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then

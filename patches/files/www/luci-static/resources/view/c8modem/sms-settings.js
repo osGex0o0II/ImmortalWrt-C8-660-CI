@@ -5,6 +5,27 @@
 'require fs';
 'require ui';
 
+const SMS_DELETE_TIMEOUT = 60000;
+
+function execWithTimeout(cmd, args, timeout, label) {
+	let timer;
+
+	return Promise.race([
+		fs.exec(cmd, args).then(function(res) {
+			clearTimeout(timer);
+			return res;
+		}, function(err) {
+			clearTimeout(timer);
+			throw err;
+		}),
+		new Promise(function(resolve, reject) {
+			timer = setTimeout(function() {
+				reject(new Error(_('%s 执行超时，请确认 SIM 卡、短信端口和模组 AT 响应正常。').format(label)));
+			}, timeout);
+		})
+	]);
+}
+
 function smsPort(section_id, value) {
 	value = value || '';
 	if (/^\/dev\/ttyUSB\d+$/.test(value) || /^\/dev\/ttyACM\d+$/.test(value))
@@ -73,7 +94,7 @@ return view.extend({
 			const storage = uci.get('sms_tool', 'general', 'storage') || 'ME';
 			const port = uci.get('sms_tool', 'general', 'readport') || '/dev/ttyUSB2';
 
-			return fs.exec('/usr/bin/sms_tool', [ '-s', storage, '-d', port, 'delete', 'all' ])
+			return execWithTimeout('/usr/bin/sms_tool', [ '-s', storage, '-d', port, 'delete', 'all' ], SMS_DELETE_TIMEOUT, _('清空短信'))
 				.then(function() {
 					ui.addNotification(null, E('p', _('已发送清空短信命令。')));
 				}).catch(function(e) {
