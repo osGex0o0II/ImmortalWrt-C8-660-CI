@@ -157,6 +157,12 @@ if [ -d "$PATCHES_DIR" ]; then
 	done
 fi
 REQUIRE_FILE "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts"
+REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts" 'macaddr_bdinfo_9: macaddr@9' "C8-660 bdinfo base MAC nvmem cell"
+REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts" 'compatible = "mac-base"' "C8-660 mac-base nvmem layout"
+REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts" 'band@0' "C8-660 WiFi 2.4G band node"
+REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts" 'nvmem-cells = <&macaddr_bdinfo_9 2>;' "C8-660 WiFi 2.4G driver MAC nvmem binding"
+REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts" 'band@1' "C8-660 WiFi 5G band node"
+REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts" 'nvmem-cells = <&macaddr_bdinfo_9 3>;' "C8-660 WiFi 5G driver MAC nvmem binding"
 
 # 安装 modem 管理文件（sendat + 脚本 + 配置 + 热插拔）
 MODEM_DST="$WRT_DIR/package/base-files/files"

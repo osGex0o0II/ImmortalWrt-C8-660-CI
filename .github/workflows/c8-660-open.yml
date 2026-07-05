@@ -169,6 +169,19 @@ jobs:
             awk '/gmac1: mac@1/,/};/' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts
             OK=false
           fi
+          if grep -q 'macaddr_bdinfo_9: macaddr@9' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts && \
+             grep -q 'compatible = "mac-base"' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts && \
+             grep -q 'band@0' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts && \
+             grep -q 'nvmem-cells = <&macaddr_bdinfo_9 2>;' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts && \
+             grep -q 'band@1' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts && \
+             grep -q 'nvmem-cells = <&macaddr_bdinfo_9 3>;' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts; then
+            echo "OK: WiFi driver gets stable per-band MACs from bdinfo nvmem"
+          else
+            echo "ERR: WiFi driver MAC nvmem binding missing"
+            awk '/factory: partition@180000/,/partition@380000/' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts
+            awk '/&wifi/,/};/' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts
+            OK=false
+          fi
           if ! $OK; then exit 1; fi
 
       - name: Check Scripts
