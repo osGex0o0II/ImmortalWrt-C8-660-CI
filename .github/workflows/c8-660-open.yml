@@ -793,6 +793,7 @@ jobs:
               .[] | select(
                 (.tagName | startswith("c8-660-open-")) or
                 ((.tagName | startswith("immortalwrt-c8-660-")) and ((.tagName | startswith("immortalwrt-c8-660-closed-")) | not)) or
+                (.tagName | startswith("NRADIO-C8-660-immortalwrt-openwrt-25.12-")) or
                 (.tagName | startswith("NRADIO-C8-660-immortalwrt-master-"))
               )
             ] | sort_by(.publishedAt) | .[0:-'"$KEEP"'] | .[].tagName
