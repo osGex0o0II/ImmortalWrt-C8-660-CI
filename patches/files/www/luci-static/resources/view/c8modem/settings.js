@@ -4,6 +4,27 @@
 'require uci';
 'require fs';
 
+const SETTINGS_EXEC_TIMEOUT = 10000;
+
+function execWithTimeout(cmd, args, timeout, label) {
+	let timer;
+
+	return Promise.race([
+		fs.exec(cmd, args || []).then(function(res) {
+			clearTimeout(timer);
+			return res;
+		}, function(err) {
+			clearTimeout(timer);
+			throw err;
+		}),
+		new Promise(function(resolve, reject) {
+			timer = setTimeout(function() {
+				reject(new Error(_('%s 执行超时').format(label)));
+			}, timeout);
+		})
+	]);
+}
+
 function token(maxlen) {
 	return function(section_id, value) {
 		value = (value || '').trim();
@@ -27,11 +48,11 @@ return view.extend({
 			uci.load('modem'),
 			fs.read('/tmp/simcardstat').catch(function() { return ''; }),
 			fs.read('/tmp/ipv6prefix').catch(function() { return ''; }),
-			fs.exec('/sbin/ifstatus', [ 'wan6' ]).catch(function() { return { stdout: '' }; }),
-			fs.exec('/bin/sendat', [ '2', 'AT+CGSN' ]).catch(function() { return { stdout: '' }; }),
-			fs.exec('/bin/sendat', [ '2', 'AT+QADBKEY?' ]).catch(function() { return { stdout: '' }; }),
-			fs.exec('/usr/bin/adb', [ 'devices' ]).catch(function() { return { stdout: '' }; }),
-			fs.exec('/usr/bin/adb', [ 'shell', 'uptime' ]).catch(function() { return { stdout: '' }; })
+			execWithTimeout('/sbin/ifstatus', [ 'wan6' ], SETTINGS_EXEC_TIMEOUT, _('WAN6 状态读取')).catch(function() { return { stdout: '' }; }),
+			execWithTimeout('/bin/sendat', [ '2', 'AT+CGSN' ], SETTINGS_EXEC_TIMEOUT, _('IMEI 读取')).catch(function() { return { stdout: '' }; }),
+			execWithTimeout('/bin/sendat', [ '2', 'AT+QADBKEY?' ], SETTINGS_EXEC_TIMEOUT, _('ADB 解锁码读取')).catch(function() { return { stdout: '' }; }),
+			execWithTimeout('/usr/bin/adb', [ 'devices' ], SETTINGS_EXEC_TIMEOUT, _('ADB 设备读取')).catch(function() { return { stdout: '' }; }),
+			execWithTimeout('/usr/bin/adb', [ 'shell', 'uptime' ], SETTINGS_EXEC_TIMEOUT, _('ADB 运行时间读取')).catch(function() { return { stdout: '' }; })
 		]);
 	},
 

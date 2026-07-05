@@ -108,6 +108,7 @@ for rel in $REQUIRED_OVERLAY_FILES; do
 done
 
 REQUIRE_PATTERN "$OVERLAY_DST/usr/share/luci/menu.d/luci-app-c8modem.json" '"admin/modem/sms/forward"' "C8 SMS forwarding menu"
+REQUIRE_PATTERN "$OVERLAY_DST/usr/share/luci/menu.d/luci-app-c8modem.json" '"path"[[:space:]]*:[[:space:]]*"c8modem/status"' "C8 modem status menu target"
 REQUIRE_PATTERN "$OVERLAY_DST/usr/share/luci/menu.d/luci-app-c8modem.json" '"admin/modem/cellscan"' "C8 base station scan menu"
 REQUIRE_PATTERN "$OVERLAY_DST/usr/share/rpcd/acl.d/luci-app-c8modem.json" '"/usr/bin/c8-sms-forward \*"' "C8 SMS forwarding RPC permission"
 REQUIRE_PATTERN "$OVERLAY_DST/usr/share/rpcd/acl.d/luci-app-c8modem.json" '"/usr/bin/cellscan.sh \*"' "C8 base station scan RPC permission"

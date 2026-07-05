@@ -120,7 +120,11 @@ function renderRows(cells) {
 							uci.set('modem', '@ndis[0]', 'cellid', cell.pci || '');
 							return uci.save();
 						}).then(function() {
-							ui.addNotification(null, E('p', _('已填入频点和PCI，请到模块设置确认后保存并应用。')));
+							ui.addNotification(null, E('p', [
+								_('已填入频点和 PCI，请到模块设置确认后保存并应用。'),
+								' ',
+								E('a', { href: L.url('admin/modem/settings') }, _('打开模块设置'))
+							]));
 						});
 					}
 				}, _('填入锁频'))
@@ -136,6 +140,7 @@ function asRows(rows) {
 
 function renderContent(data) {
 	data = data || {};
+	latestData = data;
 	const running = isRunning(data);
 	const tableRows = [
 		E('tr', { 'class': 'tr table-titles' }, [
@@ -193,6 +198,8 @@ function renderContent(data) {
 }
 
 let container;
+let latestData;
+let lastIdleRefresh = 0;
 
 function readAndRedraw() {
 	return readScan().then(function(data) {
@@ -210,6 +217,12 @@ return view.extend({
 	render: function(data) {
 		container = renderContent(data);
 		poll.add(function() {
+			const now = Date.now();
+			if (!isRunning(latestData)) {
+				if (now - lastIdleRefresh < 10000)
+					return Promise.resolve();
+				lastIdleRefresh = now;
+			}
 			return readAndRedraw();
 		}, 2);
 		return container;

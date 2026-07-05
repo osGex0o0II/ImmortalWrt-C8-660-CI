@@ -3,6 +3,27 @@
 'require fs';
 'require poll';
 
+const STATUS_EXEC_TIMEOUT = 15000;
+
+function execWithTimeout(cmd, args, timeout, label) {
+	let timer;
+
+	return Promise.race([
+		fs.exec(cmd, args || []).then(function(res) {
+			clearTimeout(timer);
+			return res;
+		}, function(err) {
+			clearTimeout(timer);
+			throw err;
+		}),
+		new Promise(function(resolve, reject) {
+			timer = setTimeout(function() {
+				reject(new Error(_('%s 执行超时，请确认模组 AT 响应正常。').format(label)));
+			}, timeout);
+		})
+	]);
+}
+
 const sections = [
 	{
 		title: _('综合信息'),
@@ -50,7 +71,7 @@ const sections = [
 ];
 
 function readStatus() {
-	return fs.exec('/usr/share/modem/zinfo.sh').then(function() {
+	return execWithTimeout('/usr/share/modem/zinfo.sh', [], STATUS_EXEC_TIMEOUT, _('蜂窝状态读取')).then(function() {
 		return fs.read('/tmp/cpe_cell.file');
 	}).then(function(text) {
 		const lines = String(text || '').replace(/\r/g, '').split('\n');

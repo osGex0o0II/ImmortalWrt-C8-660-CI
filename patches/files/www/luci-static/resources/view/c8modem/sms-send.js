@@ -58,6 +58,8 @@ return view.extend({
 		const output = E('pre', {
 			'style': 'white-space:pre-wrap; min-height:3em;'
 		}, '');
+		let sendButton;
+		let sending = false;
 
 		function updateCounter() {
 			counter.textContent = '%d / 670'.format(text.value.length);
@@ -77,7 +79,12 @@ return view.extend({
 				ui.addNotification(null, E('p', _('请输入短信内容')));
 				return Promise.resolve();
 			}
+			if (sending)
+				return Promise.resolve();
 
+			sending = true;
+			if (sendButton)
+				sendButton.disabled = true;
 			output.textContent = _('发送中...');
 			return execWithTimeout('/usr/bin/sms_tool', [ '-d', port, 'send', nr, msg ], SMS_SEND_TIMEOUT, _('短信发送')).then(function(res) {
 				const result = [ res.stdout || '', res.stderr || '' ].join('\n').trim();
@@ -92,8 +99,17 @@ return view.extend({
 			}).catch(function(e) {
 				output.textContent = e.message;
 				ui.addNotification(null, E('p', e.message));
+			}).finally(function() {
+				sending = false;
+				if (sendButton)
+					sendButton.disabled = false;
 			});
 		}
+
+		sendButton = E('button', {
+			'class': 'cbi-button cbi-button-apply',
+			click: send
+		}, _('发送'));
 
 		return E('div', { 'class': 'cbi-map' }, [
 			E('h2', _('短信发送')),
@@ -108,10 +124,7 @@ return view.extend({
 					E('div', { 'class': 'cbi-value-field' }, [ text, E('div', {}, counter) ])
 				]),
 				E('div', { 'class': 'cbi-page-actions' }, [
-					E('button', {
-						'class': 'cbi-button cbi-button-apply',
-						click: send
-					}, _('发送'))
+					sendButton
 				]),
 				E('div', { 'class': 'cbi-value' }, [
 					E('label', { 'class': 'cbi-value-title' }, _('发送结果')),

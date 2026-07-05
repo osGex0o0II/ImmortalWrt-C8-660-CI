@@ -177,7 +177,7 @@ jobs:
           find ./ -maxdepth 3 -type f -iname "*.txt" -exec dos2unix {} \;
           find ./ -maxdepth 3 -type f -iname "*.mk" -exec dos2unix {} \;
 
-      - name: Validate C8 SMS Overlay
+      - name: Validate C8 Modem Overlay
         run: |
           set -euo pipefail
 
@@ -185,6 +185,11 @@ jobs:
           TMP_WRT="$(mktemp -d)"
           trap 'rm -rf "$TMP_WRT"' EXIT
           bash "$GITHUB_WORKSPACE/Scripts/InstallC8Overlay.sh" "$TMP_WRT"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/status.js"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/signal.js"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/settings.js"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/at.js"
+          node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/cellscan.js"
           node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-read.js"
           node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-send.js"
           node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-settings.js"
@@ -597,6 +602,11 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/c8modem/sms-settings\.js' 'C8 SMS JS settings page'
           require_rootfs 'www/luci-static/resources/view/status(.*/)?10_system\.js' 'LuCI system status JS'
 
+          C8_MENU_JSON="$("$UNSQUASHFS" -cat "$ROOTFS" usr/share/luci/menu.d/luci-app-c8modem.json)"
+          if ! printf '%s' "$C8_MENU_JSON" | grep -q '"path"[[:space:]]*:[[:space:]]*"c8modem/status"'; then
+            echo "::error::C8 modem status menu does not target c8modem/status"
+            exit 1
+          fi
           SMS_TOOL_CONFIG="$("$UNSQUASHFS" -cat "$ROOTFS" etc/config/sms_tool)"
           if ! printf '%s' "$SMS_TOOL_CONFIG" | grep -q 'sms_tool_timeout'; then
             echo "::error::sms_tool config is missing sms_tool_timeout"
