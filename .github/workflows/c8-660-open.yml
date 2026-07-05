@@ -607,6 +607,29 @@ jobs:
             echo "::error::C8 modem status menu does not target c8modem/status"
             exit 1
           fi
+          C8_ACL_JSON="$("$UNSQUASHFS" -cat "$ROOTFS" usr/share/rpcd/acl.d/luci-app-c8modem.json)"
+          for REQUIRED_ACL in \
+            '"/usr/bin/cellscan.sh status"' \
+            '"/usr/bin/cellscan.sh start"' \
+            '"/usr/bin/cellscan.sh stop"' \
+            '"/usr/share/modem/luci-reinit.sh"'
+          do
+            if ! printf '%s' "$C8_ACL_JSON" | grep -q "$REQUIRED_ACL"; then
+              echo "::error::C8 modem ACL missing: $REQUIRED_ACL"
+              exit 1
+            fi
+          done
+          for REJECTED_ACL in \
+            '"/bin/sendat 2 \*"' \
+            '"/usr/bin/cellscan.sh \*"' \
+            '"/usr/bin/iwinfo \*"' \
+            '"/usr/share/modem/rm520n.sh"'
+          do
+            if printf '%s' "$C8_ACL_JSON" | grep -q "$REJECTED_ACL"; then
+              echo "::error::C8 modem ACL still has broad or unused permission: $REJECTED_ACL"
+              exit 1
+            fi
+          done
           SMS_TOOL_CONFIG="$("$UNSQUASHFS" -cat "$ROOTFS" etc/config/sms_tool)"
           if ! printf '%s' "$SMS_TOOL_CONFIG" | grep -q 'sms_tool_timeout'; then
             echo "::error::sms_tool config is missing sms_tool_timeout"

@@ -4,12 +4,9 @@
 		"read": {
 			"file": {
 				"/usr/share/modem/zinfo.sh": [ "exec" ],
-				"/usr/share/modem/atcmd.sh *": [ "exec" ],
-				"/usr/share/modem/delatcmd.sh": [ "exec" ],
-				"/usr/bin/cellscan.sh *": [ "exec" ],
+				"/usr/bin/cellscan.sh status": [ "exec" ],
 				"/usr/bin/c8-sms-forward *": [ "exec" ],
 				"/usr/bin/sms_tool *": [ "exec" ],
-				"/usr/bin/iwinfo *": [ "exec" ],
 				"/tmp/cpe_cell.file": [ "read" ],
 				"/tmp/cellscan.json": [ "read" ],
 				"/tmp/cellinfo": [ "read" ],
@@ -20,7 +17,8 @@
 				"/usr/bin/adb devices": [ "exec" ],
 				"/usr/bin/adb shell uptime": [ "exec" ],
 				"/sbin/ifstatus wan6": [ "exec" ],
-				"/bin/sendat 2 *": [ "exec" ]
+				"/bin/sendat 2 AT+CGSN": [ "exec" ],
+				"/bin/sendat 2 AT+QADBKEY?": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "exec", "read" ]
@@ -29,15 +27,14 @@
 		},
 		"write": {
 			"file": {
-				"/usr/share/modem/rm520n.sh": [ "exec" ],
 				"/usr/share/modem/atcmd.sh *": [ "exec" ],
 				"/usr/share/modem/delatcmd.sh": [ "exec" ],
 				"/usr/share/modem/luci-reinit.sh": [ "exec" ],
 				"/etc/init.d/c8-sms-forward *": [ "exec" ],
-				"/usr/bin/cellscan.sh *": [ "exec" ],
+				"/usr/bin/cellscan.sh start": [ "exec" ],
+				"/usr/bin/cellscan.sh stop": [ "exec" ],
 				"/usr/bin/c8-sms-forward *": [ "exec" ],
-				"/usr/bin/sms_tool *": [ "exec" ],
-				"/tmp/freq.run": [ "write" ]
+				"/usr/bin/sms_tool *": [ "exec" ]
 			},
 			"ubus": {
 				"file": [ "exec", "write" ]

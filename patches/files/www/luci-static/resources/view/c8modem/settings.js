@@ -3,6 +3,7 @@
 'require form';
 'require uci';
 'require fs';
+'require ui';
 
 const SETTINGS_EXEC_TIMEOUT = 10000;
 
@@ -192,5 +193,15 @@ return view.extend({
 		o.cfgvalue = function() { return uptime || _('ADB未安装'); };
 
 		return m.render();
+	},
+
+	handleSaveApply: function(ev, mode) {
+		return this.handleSave(ev).then(function() {
+			return execWithTimeout('/usr/share/modem/luci-reinit.sh', [], SETTINGS_EXEC_TIMEOUT, _('模块设置应用'));
+		}).then(function() {
+			ui.addNotification(null, E('p', _('模块设置已保存，正在后台重新应用蜂窝配置。')));
+		}).catch(function(e) {
+			ui.addNotification(null, E('p', e.message));
+		});
 	}
 });
