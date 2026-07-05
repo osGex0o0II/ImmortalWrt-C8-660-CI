@@ -10,7 +10,7 @@ on:
       wrt_branch:
         description: "ImmortalWrt branch to build"
         required: true
-        default: "master"
+        default: "openwrt-25.12"
         type: string
       wrt_ref:
         description: "Optional ImmortalWrt commit, tag, or ref override"
@@ -61,7 +61,7 @@ env:
   WRT_IP: 192.168.1.1
   WRT_PW: ${{ inputs.wrt_pw || secrets.WRT_PW || '' }}
   WRT_REPO: https://github.com/immortalwrt/immortalwrt
-  WRT_BRANCH: ${{ inputs.wrt_branch || 'master' }}
+  WRT_BRANCH: ${{ inputs.wrt_branch || 'openwrt-25.12' }}
   WRT_REF: ${{ inputs.wrt_ref || '' }}
   ENABLE_WED: ${{ inputs.enable_wed }}
   ENABLE_FLOW_OFFLOADING: ${{ inputs.enable_flow_offloading }}

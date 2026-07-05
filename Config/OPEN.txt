@@ -3,7 +3,7 @@
 # ==========================================
 # WiFi 驱动: mt76 (开源)
 # 内核: 6.x (mainline)
-# 源码: immortalwrt/immortalwrt (master)
+# 源码: immortalwrt/immortalwrt (openwrt-25.12 stable)
 # 设备支持: 通过 patches/ 注入 DTS + filogic.mk
 #
 # 本文件为开源构建标识，实际配置由 GENERAL.txt + NRADIO-C8-660.txt 提供。

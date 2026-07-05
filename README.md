@@ -58,7 +58,7 @@ ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 | | 开源构建 (Open) | 闭源构建 (Closed) |
 |--|--|--|
 | **工作流** | `C8-660 Open (mt76)` | `C8-660 Closed 21.02 (mt_wifi 5.4)` |
-| **源码** | immortalwrt/immortalwrt (master) | hanwckf/immortalwrt-mt798x (openwrt-21.02) |
+| **源码** | immortalwrt/immortalwrt (openwrt-25.12 stable) | hanwckf/immortalwrt-mt798x (openwrt-21.02) |
 | **内核** | 6.x (mainline) | 5.4 (SDK) |
 | **WiFi 驱动** | mt76 (开源) | mt_wifi (MediaTek 专有 v7.6.6.1) |
 | **硬件加速** | WED (mt76) | WARP/HNAT 暂停启用 |
@@ -89,11 +89,13 @@ ip-full, lsblk, openssh-keygen/sftp-server, htop 等
 | 项目 | 值 |
 |------|-----|
 | 源码 | immortalwrt/immortalwrt |
-| 分支 | master |
+| 分支 | openwrt-25.12 |
 | 内核 | 6.x (mainline) |
 | WiFi 驱动 | mt76 (开源) |
 | 镜像格式 | UBI + FIT |
 | 触发方式 | 手动 (workflow_dispatch) |
+
+Open 构建默认使用 ImmortalWrt 稳定分支 `openwrt-25.12`。`workflow_dispatch` 仍保留 `wrt_branch` / `wrt_ref` 输入，便于手动对比 `master` snapshot 或固定到指定 commit；稳定发布不建议使用 `master` 作为默认底座。
 
 ## 已知风险与救砖
 
@@ -120,7 +122,7 @@ WiFi 校准数据依赖 factory 分区 EEPROM，mt76 驱动偏移可能与原厂
 
 ## mainline 集成说明
 
-ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支持**。本项目通过 `Scripts/Patches.sh` 在编译时自动注入以下补丁：
+ImmortalWrt 稳定分支 / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支持**。本项目通过 `Scripts/Patches.sh` 在编译时自动注入以下补丁：
 
 - `patches/mt7981b-nradio-c8-660.dts` — 完整设备树（基于 hanwckf -512m 改写）
 - `patches/filogic-c8-660.mk` — 设备定义追加到 `filogic.mk`
@@ -250,7 +252,7 @@ ImmortalWrt master / OpenWrt mainline 当前**未集成 NRadio C8-660 设备支�
 ## 目录结构
 
 - `.github/workflows/` — CI 工作流
-   - `c8-660-open.yml` — 开源构建 (mt76 + mainline 6.x, ImmortalWrt master)
+   - `c8-660-open.yml` — 开源构建 (mt76 + mainline 6.x, ImmortalWrt openwrt-25.12 stable)
    - `c8-660-closed-21.02.yml` — 闭源构建 (mt_wifi + SDK 5.4, hanwckf/immortalwrt-mt798x)
 - `archive/closed-24.10/` — 已归档的闭源 24.10 实验线，仅保留参考，不作为 active workflow
 - `Scripts/` — 编译自定义脚本（主题、插件、系统设置）
