@@ -1,0 +1,394 @@
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2026 VIKINGYFY
+
+name: C8-660 Closed (mt_wifi 7.6.7.3 + HNAT/WED)
+
+on:
+  workflow_dispatch:
+    inputs:
+      wrt_ref:
+        description: "Pinned upstream commit, tag, or ref"
+        required: false
+        default: ""
+        type: string
+      publish_release:
+        description: "Publish firmware to GitHub Releases"
+        required: true
+        default: true
+        type: boolean
+      enable_cache:
+        description: "Reuse the upstream build cache"
+        required: true
+        default: true
+        type: boolean
+      keep_releases:
+        description: "Number of recent closed releases to keep"
+        required: true
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  WRT_CONFIG: NRADIO-C8-660-CLOSED
+  WRT_THEME: aurora
+  WRT_NAME: NRadio-C8-660
+  WRT_SSID: NRadio
+  WRT_IP: 192.168.1.1
+  WRT_REPO: https://github.com/chasey-dev/immortalwrt-mt798x-rebase
+  WRT_BRANCH: "25.12"
+  WRT_REF: ${{ inputs.wrt_ref || '2d0e93b1253660ae15d195786cd7fa913d70d42a' }}
+  WRT_WIFI: mt_wifi-7.6.7.3-hnat-wed
+
+jobs:
+  build:
+    name: immortalwrt-c8-660-closed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout Projects
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Initialize Build Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          sudo -E apt-get -yqq update
+          sudo -E apt-get -yqq install dos2unix git curl wget file jq unzip libfuse-dev
+
+          curl -fsSL --retry 3 \
+            "https://build-scripts.immortalwrt.org/init_build_environment.sh" \
+            -o /tmp/init_build_env.sh
+          actual_sha256="$(sha256sum /tmp/init_build_env.sh | cut -d' ' -f1)"
+          pin_file="$GITHUB_WORKSPACE/.github/init_build_environment.sha256"
+          expected_sha256="${INIT_BUILD_EXPECTED_SHA256:-${{ secrets.INIT_BUILD_EXPECTED_SHA256 || '' }}}"
+          if [ -z "$expected_sha256" ] && [ -f "$pin_file" ]; then
+            expected_sha256="$(tr -d '[:space:]' < "$pin_file")"
+          fi
+          [ -n "$expected_sha256" ] || {
+            echo "::error::No init_build_environment.sh SHA256 pin found"
+            exit 1
+          }
+          printf '%s  %s\n' "$expected_sha256" /tmp/init_build_env.sh | sha256sum -c --status || {
+            echo "::error::init_build_environment.sh SHA256 mismatch"
+            echo "::error::Expected: $expected_sha256"
+            echo "::error::Actual:   $actual_sha256"
+            exit 1
+          }
+          sudo bash /tmp/init_build_env.sh
+          sudo timedatectl set-timezone Asia/Shanghai
+
+          sudo mkdir -p /mnt/build_wrt
+          sudo chown "$USER:$USER" /mnt/build_wrt
+          ln -s /mnt/build_wrt "$GITHUB_WORKSPACE/wrt"
+
+      - name: Initialize Build Values
+        run: |
+          set -euo pipefail
+          release_date="$(TZ=Asia/Shanghai date +'%Y.%m.%d')"
+          release_time="$(TZ=Asia/Shanghai date +'%H:%M')"
+          release_stamp="$(TZ=Asia/Shanghai date +'%Y%m%d-%H%M')"
+          run_suffix="r${GITHUB_RUN_NUMBER}-a${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "CCACHE_DIR=$GITHUB_WORKSPACE/wrt/.ccache"
+            echo "RELEASE_DATE=$release_date"
+            echo "RELEASE_TIME=$release_time"
+            echo "WRT_DATE=${release_date}-${release_time//:/}"
+            echo "RELEASE_TAG=c8-660-closed-${release_stamp}-${run_suffix}"
+            echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}"
+          } >> "$GITHUB_ENV"
+
+      - name: Clone Pinned 25.12 Source
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --single-branch --branch "$WRT_BRANCH" "$WRT_REPO" ./wrt/
+          cd ./wrt/
+
+          if git fetch --depth=1 origin "$WRT_REF"; then
+            resolved_ref="$(git rev-parse FETCH_HEAD)"
+            git checkout --detach "$resolved_ref"
+          else
+            git fetch --unshallow --tags origin "$WRT_BRANCH" || git fetch --tags origin "$WRT_BRANCH"
+            resolved_ref="$(git rev-parse "$WRT_REF^{commit}")"
+            git checkout --detach "$resolved_ref"
+          fi
+          head_ref="$(git rev-parse HEAD)"
+          [ "$head_ref" = "$resolved_ref" ] || {
+            echo "::error::Detached HEAD $head_ref does not match fetched ref $resolved_ref"
+            exit 1
+          }
+          if printf '%s' "$WRT_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            [ "$head_ref" = "$WRT_REF" ] || {
+              echo "::error::Pinned commit mismatch: requested $WRT_REF, got $head_ref"
+              exit 1
+            }
+          fi
+          {
+            echo "WRT_HASH_FULL=$head_ref"
+            echo "WRT_HASH=$(git rev-parse --short=12 HEAD)"
+          } >> "$GITHUB_ENV"
+
+      - name: Install C8 Closed Target And Overlay
+        run: |
+          set -euo pipefail
+          bash "$GITHUB_WORKSPACE/Scripts/InstallC8ClosedTarget.sh" ./wrt/
+          # Patches.sh installs the shared board/network/LED overlay. Reinstalling
+          # the closed target afterwards restores the closed-only HNAT DTS node.
+          bash "$GITHUB_WORKSPACE/Scripts/Patches.sh" ./wrt/
+          bash "$GITHUB_WORKSPACE/Scripts/InstallC8ClosedTarget.sh" ./wrt/
+
+          dts=./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts
+          image=./wrt/target/linux/mediatek/image/filogic.mk
+          [ "$(grep -c '^&hnat {' "$dts")" -eq 1 ]
+          grep -Fq 'mtketh-wan = "eth1";' "$dts"
+          [ "$(grep -c '^define Device/nradio_wt9103$' "$image")" -eq 1 ]
+          grep -Fq 'kmod-mt_wifi' "$image"
+          ! grep -A35 '^define Device/nradio_wt9103$' "$image" | grep -Eq 'kmod-mt7915e|kmod-mt7981-firmware|mt7981-wo-firmware'
+
+      - name: Validate Repository Overlay
+        run: |
+          set -euo pipefail
+          bash "$GITHUB_WORKSPACE/Scripts/TestC8SmsForward.sh"
+          bash "$GITHUB_WORKSPACE/Scripts/TestC8SmsForwardLuCI.sh"
+          for script in "$GITHUB_WORKSPACE"/patches/files/www/luci-static/resources/view/c8modem/*.js; do
+            node --check "$script"
+          done
+
+      - name: Restore Build Cache
+        if: ${{ inputs.enable_cache }}
+        id: check-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          key: ${{env.WRT_CONFIG}}-${{env.WRT_HASH}}
+          restore-keys: ${{env.WRT_CONFIG}}-
+          path: |
+            ./wrt/.ccache
+            ./wrt/feeds
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+            ./wrt/dl
+
+      - name: Update Feeds
+        run: |
+          set -euo pipefail
+          cd ./wrt/
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Install Custom Packages
+        run: |
+          set -euo pipefail
+          cd ./wrt/package/
+          "$GITHUB_WORKSPACE/Scripts/Packages.sh"
+          "$GITHUB_WORKSPACE/Scripts/Handles.sh"
+
+      - name: Configure Closed Firmware
+        env:
+          WRT_PW: ${{ secrets.WRT_PW || '' }}
+        run: |
+          set -euo pipefail
+          cd ./wrt/
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
+
+          cat \
+            "$GITHUB_WORKSPACE/Config/NRADIO-C8-660-CLOSED.txt" \
+            "$GITHUB_WORKSPACE/Config/CLOSED.txt" \
+            "$GITHUB_WORKSPACE/Config/GENERAL-CLOSED.txt" \
+            >> .config
+          if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then
+            cat "$GITHUB_WORKSPACE/Config/PRIVATE.txt" >> .config
+          fi
+          printf '%s\n' 'CONFIG_PACKAGE_luci=y' 'CONFIG_LUCI_LANG_zh_Hans=y' >> .config
+
+          [ -n "$WRT_PW" ] || {
+            echo "::error::WRT_PW secret is required; refusing to build an image with an empty root password"
+            exit 1
+          }
+          shadow=./package/base-files/files/etc/shadow
+          [ -f "$shadow" ] || { echo "::error::Missing rootfs shadow template"; exit 1; }
+          root_hash="$(printf '%s' "$WRT_PW" | openssl passwd -6 -stdin)"
+          sed -i "s|^root:[^:]*:|root:${root_hash}:|" "$shadow"
+          unset root_hash WRT_PW
+
+          config_generate=./package/base-files/files/bin/config_generate
+          [ -f "$config_generate" ] || { echo "::error::Missing config_generate"; exit 1; }
+          sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$config_generate"
+          sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" "$config_generate"
+
+          luci_collection=./feeds/luci/collections/luci/Makefile
+          if [ -f "$luci_collection" ]; then
+            sed -i -E 's/[[:space:]]*\+luci-app-(attendedsysupgrade|package-manager)//g' "$luci_collection"
+            sed -i "s|luci-theme-bootstrap|luci-theme-$WRT_THEME|g" "$luci_collection"
+          fi
+
+          make defconfig -j"$(nproc)"
+          bash "$GITHUB_WORKSPACE/Scripts/ValidateC8ClosedBuild.sh" config .config
+          grep -Fxq 'CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_nradio_wt9103=y' .config
+
+      - name: Download Sources
+        run: |
+          set -euo pipefail
+          cd ./wrt/
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
+          make download -j"$(nproc)"
+          find dl -type f -size -1024c -print -delete
+
+      - name: Compile Firmware
+        timeout-minutes: 300
+        run: |
+          set -o pipefail
+          cd ./wrt/
+          export CCACHE_DIR="${{ env.CCACHE_DIR }}"
+          make -j"$(nproc)" V=s 2>&1 | tee build.log
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Upload Build Diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: build-log-${{env.WRT_CONFIG}}-${{github.run_id}}
+          path: |
+            ./wrt/build.log
+            ./wrt/.config
+          retention-days: 3
+          if-no-files-found: warn
+
+      - name: Package Firmware
+        run: |
+          set -euo pipefail
+          cd ./wrt/
+          rm -rf ./upload/
+          mkdir -p ./upload/
+
+          select_one() {
+            local kind="$1"
+            local pattern="$2"
+            local output="$3"
+            mapfile -t matches < <(find ./bin/targets/ -type f -iname "$pattern" | sort)
+            if [ "${#matches[@]}" -ne 1 ]; then
+              echo "::error::Expected one $kind artifact matching $pattern, found ${#matches[@]}"
+              printf '%s\n' "${matches[@]}"
+              exit 1
+            fi
+            cp -f "${matches[0]}" "./upload/$output"
+          }
+
+          select_one factory '*squashfs-factory*.bin' 'immortalwrt-c8-660-closed-factory.bin'
+          select_one sysupgrade '*squashfs-sysupgrade*.bin' 'immortalwrt-c8-660-closed-sysupgrade.bin'
+          select_one initramfs '*initramfs*.bin' 'immortalwrt-c8-660-closed-initramfs.bin'
+          select_one bl2 '*mt7981*ddr4*bl2*.bin' 'mt7981-ddr4-bl2.bin'
+          select_one manifest '*.manifest' 'immortalwrt-c8-660-closed.manifest'
+
+          bash "$GITHUB_WORKSPACE/Scripts/ValidateC8ClosedBuild.sh" manifest \
+            ./upload/immortalwrt-c8-660-closed.manifest
+          kernel_version="$(sed -n 's/^kernel - //p' ./upload/immortalwrt-c8-660-closed.manifest | head -1)"
+          echo "WRT_KVER=${kernel_version:-unknown}" >> "$GITHUB_ENV"
+          {
+            echo "SOURCE_REPOSITORY=$WRT_REPO"
+            echo "SOURCE_BRANCH=$WRT_BRANCH"
+            echo "SOURCE_COMMIT=$WRT_HASH_FULL"
+            echo "WIFI_STACK=$WRT_WIFI"
+          } > ./upload/build-metadata.txt
+          (
+            cd ./upload
+            sha256sum \
+              immortalwrt-c8-660-closed-factory.bin \
+              immortalwrt-c8-660-closed-sysupgrade.bin \
+              immortalwrt-c8-660-closed-initramfs.bin \
+              mt7981-ddr4-bl2.bin \
+              immortalwrt-c8-660-closed.manifest \
+              build-metadata.txt \
+              > sha256sums
+          )
+
+      - name: Validate Firmware Rootfs
+        run: |
+          set -euo pipefail
+          cd ./wrt/
+          sysupgrade=./upload/immortalwrt-c8-660-closed-sysupgrade.bin
+          extract_dir="$(mktemp -d)"
+          trap 'rm -rf "$extract_dir"' EXIT
+          tar -xf "$sysupgrade" -C "$extract_dir"
+          rootfs="$(find "$extract_dir" -type f -name root -print -quit)"
+          [ -s "$rootfs" ] || { echo "::error::Missing squashfs root inside sysupgrade"; exit 1; }
+          unsquashfs=./staging_dir/host/bin/unsquashfs
+          [ -x "$unsquashfs" ] || unsquashfs="$(command -v unsquashfs || true)"
+          [ -n "$unsquashfs" ] && [ -x "$unsquashfs" ] || {
+            echo "::error::unsquashfs is unavailable"
+            exit 1
+          }
+          rootfs_list=/tmp/c8-660-closed-rootfs.list
+          "$unsquashfs" -ll "$rootfs" > "$rootfs_list"
+          bash "$GITHUB_WORKSPACE/Scripts/ValidateC8ClosedBuild.sh" rootfs "$rootfs_list"
+
+          defaults="$($unsquashfs -cat "$rootfs" etc/uci-defaults/99-v12-defaults.sh)"
+          printf '%s' "$defaults" | grep -Fq "network.wan.device='eth1'"
+          printf '%s' "$defaults" | grep -Fq "firewall.@defaults[0].flow_offloading_hw='1'"
+          root_shadow="$($unsquashfs -cat "$rootfs" etc/shadow | sed -n 's/^root:\([^:]*\):.*/\1/p')"
+          [ -n "$root_shadow" ] || { echo "::error::Root password hash is empty"; exit 1; }
+
+      - name: Cleanup Old Closed Releases
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          keep="${{ inputs.keep_releases }}"
+          case "$keep" in ''|*[!0-9]*) keep=3 ;; esac
+          releases="$(gh release list --json tagName,publishedAt --limit 100 --jq '
+            [.[] | select(.tagName | startswith("c8-660-closed-"))]
+            | sort_by(.publishedAt) | .[0:-'"$keep"'] | .[].tagName
+          ' 2>/dev/null || true)"
+          for tag in $releases; do
+            gh release delete "$tag" --yes 2>/dev/null || true
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" 2>/dev/null || true
+          done
+
+      - name: Release Firmware
+        if: ${{ inputs.publish_release }}
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{env.RELEASE_TAG}}
+          name: C8-660 Closed ${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}}
+          fail_on_unmatched_files: true
+          files: |
+            ./wrt/upload/immortalwrt-c8-660-closed-factory.bin
+            ./wrt/upload/immortalwrt-c8-660-closed-sysupgrade.bin
+            ./wrt/upload/immortalwrt-c8-660-closed-initramfs.bin
+            ./wrt/upload/mt7981-ddr4-bl2.bin
+            ./wrt/upload/immortalwrt-c8-660-closed.manifest
+            ./wrt/upload/build-metadata.txt
+            ./wrt/upload/sha256sums
+          body: |
+            ## C8-660 Closed firmware
+
+            - Source: `${{env.WRT_REPO}}` (`${{env.WRT_BRANCH}}`) @ `${{env.WRT_HASH_FULL}}`
+            - Kernel: `${{env.WRT_KVER}}`
+            - WiFi: `mt_wifi 7.6.7.3`
+            - Acceleration: MediaTek HNAT + WARP/WED
+            - WAN data path: RM520N RGMII/IPPT on `eth1`
+
+            Verify `sha256sums` before flashing. Back up BL2, FIP and factory data first.
+
+      - name: Upload Firmware Artifact
+        if: ${{ inputs.publish_release == false }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: firmware-${{env.WRT_CONFIG}}-${{env.WRT_HASH}}-${{github.run_id}}
+          path: ./wrt/upload/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Clean Build Workspace
+        if: always()
+        run: |
+          rm -rf ./wrt/build_dir ./wrt/tmp ./wrt/logs ./wrt/bin 2>/dev/null || true
+          rm -rf ./wrt/staging_dir/target* 2>/dev/null || true

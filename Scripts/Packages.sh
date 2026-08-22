@@ -74,10 +74,20 @@ UPDATE_PACKAGE() {
 
 	# 如果设置了锁定 commit，checkout 到该 commit
 	if [ -n "$LOCKED_COMMIT" ]; then
-		cd "$REPO_NAME" 2>/dev/null || cd "$PKG_NAME" 2>/dev/null || true
-		git fetch --unshallow 2>/dev/null || true
-		git checkout "$LOCKED_COMMIT" || echo "::warning::Failed to checkout $PKG_NAME commit $LOCKED_COMMIT"
-		cd ..
+		local CLONE_DIR="$REPO_NAME"
+		[ -d "$CLONE_DIR/.git" ] || CLONE_DIR="$PKG_NAME"
+		if [ ! -d "$CLONE_DIR/.git" ]; then
+			echo "::error::Cannot locate git checkout for locked package $PKG_NAME"
+			return 1
+		fi
+		(
+			cd "$CLONE_DIR"
+			git fetch --unshallow 2>/dev/null || git fetch --all --tags
+			git checkout "$LOCKED_COMMIT"
+		) || {
+			echo "::error::Failed to checkout $PKG_NAME commit $LOCKED_COMMIT"
+			return 1
+		}
 	fi
 
 	# 处理克隆的仓库
@@ -134,8 +144,10 @@ if grep -qs '^CONFIG_PACKAGE_luci-app-aurora-config=y$' "${CONFIG_FILES[@]}"; th
 fi
 
 # 插件
-UPDATE_PACKAGE "luci-app-partexp" "sirpdboy/luci-app-partexp" "main" "" "partexp" "luci-app-partexp" "partexp"
-if [[ "${WRT_CONFIG:-}" != *CLOSED* ]] && grep -qs '^CONFIG_PACKAGE_luci-app-homeproxy=y$' "${CONFIG_FILES[@]}"; then
+if grep -qs '^CONFIG_PACKAGE_luci-app-partexp=y$' "${CONFIG_FILES[@]}"; then
+	UPDATE_PACKAGE "luci-app-partexp" "sirpdboy/luci-app-partexp" "main" "" "partexp" "luci-app-partexp" "partexp"
+fi
+if grep -qs '^CONFIG_PACKAGE_luci-app-homeproxy=y$' "${CONFIG_FILES[@]}"; then
 	UPDATE_PACKAGE "luci-app-homeproxy" "immortalwrt/homeproxy" "master" "name" "homeproxy" "" "homeproxy"
 	bash "$GITHUB_WORKSPACE/Scripts/PatchHomeProxyModern.sh" "luci-app-homeproxy"
 fi
