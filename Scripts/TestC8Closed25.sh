@@ -357,8 +357,11 @@ test_workflow_contract() {
 	fi
 
 	if python3 - "$workflow" <<'PY'
+import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -400,6 +403,32 @@ steps = data["jobs"]["build"].get("steps") or []
 checkout = next((step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@")), None)
 assert checkout is not None, "missing actions/checkout"
 assert checkout.get("with", {}).get("persist-credentials") in (False, "false"), "checkout credentials must be disabled"
+
+packages = next((step for step in steps if step.get("name") == "Install Custom Packages"), None)
+assert packages is not None, "missing custom package installation step"
+with tempfile.TemporaryDirectory() as fixture:
+    fixture_path = Path(fixture)
+    (fixture_path / "Scripts").mkdir()
+    (fixture_path / "wrt/package").mkdir(parents=True)
+    marker = fixture_path / "packages-ran"
+    for script_name in ("Packages.sh", "Handles.sh"):
+        script = fixture_path / "Scripts" / script_name
+        script.write_text(f'printf "%s\\n" "{script_name}" >> "$PACKAGE_MARKER"\n', encoding="utf-8")
+        script.chmod(0o644)
+    package_env = os.environ.copy()
+    package_env.update(GITHUB_WORKSPACE=str(fixture_path), PACKAGE_MARKER=str(marker))
+    package_result = subprocess.run(
+        ["bash", "-c", str(packages.get("run", ""))],
+        cwd=fixture_path,
+        env=package_env,
+        capture_output=True,
+        text=True,
+    )
+    assert package_result.returncode == 0, (
+        "custom package step must run repository scripts without executable bits:\n"
+        f"{package_result.stdout}{package_result.stderr}"
+    )
+    assert marker.read_text(encoding="utf-8").splitlines() == ["Packages.sh", "Handles.sh"]
 
 runs = "\n".join(str(step.get("run", "")) for step in steps)
 required_run_fragments = (
