@@ -188,6 +188,11 @@ jobs:
           bash "$GITHUB_WORKSPACE/Scripts/Packages.sh"
           bash "$GITHUB_WORKSPACE/Scripts/Handles.sh"
 
+      - name: Preflight Closed Firmware
+        run: |
+          set -euo pipefail
+          bash "$GITHUB_WORKSPACE/Scripts/PreflightC8Closed25.sh" ./wrt/
+
       - name: Configure Closed Firmware
         env:
           WRT_PW: ${{ secrets.WRT_PW || '' }}

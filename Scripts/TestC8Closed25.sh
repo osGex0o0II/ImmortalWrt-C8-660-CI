@@ -201,6 +201,7 @@ CONFIG_PACKAGE_kmod-mediatek_hnat=y
 CONFIG_PACKAGE_kmod-warp=y
 CONFIG_PACKAGE_hnat-detect=y
 CONFIG_MTK_FAST_NAT_SUPPORT=y
+CONFIG_MTK_WLAN_HOOK=y
 CONFIG_MTK_WHNAT_SUPPORT=m
 CONFIG_MTK_WARP_V2=y
 CONFIG_WARP_CHIPSET="mt7981"
@@ -220,12 +221,15 @@ CONFIG_PACKAGE_kmod-mediatek_hnat=y
 CONFIG_PACKAGE_kmod-warp=y
 CONFIG_PACKAGE_hnat-detect=y
 CONFIG_MTK_FAST_NAT_SUPPORT=y
+CONFIG_MTK_WLAN_HOOK=y
 CONFIG_MTK_WHNAT_SUPPORT=m
 CONFIG_MTK_WARP_V2=y
 CONFIG_WARP_CHIPSET="mt7981"
 CONFIG_WARP_VERSION=2
 CONFIG_PACKAGE_kmod-mt7915e=y
 BAD_CONFIG
+
+	grep -Fvx 'CONFIG_MTK_WLAN_HOOK=y' "$fixture/good.config" > "$fixture/missing-hook.config"
 
 	cat > "$fixture/good.manifest" <<'GOOD_MANIFEST'
 kmod-mt_wifi - 7.6.7.3
@@ -296,6 +300,11 @@ BAD_ROOTFS
 		fail 'validator must reject missing WED and present mt76 Kconfig'
 	else
 		pass 'validator rejects missing WED and present mt76 Kconfig'
+	fi
+	if bash "$validator" config "$fixture/missing-hook.config" >/dev/null 2>&1; then
+		fail 'validator must reject a closed config without the WLAN hook required by WHNAT'
+	else
+		pass 'validator rejects missing WLAN hook dependency'
 	fi
 
 	if bash "$validator" manifest "$fixture/good.manifest"; then
@@ -403,6 +412,18 @@ steps = data["jobs"]["build"].get("steps") or []
 checkout = next((step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@")), None)
 assert checkout is not None, "missing actions/checkout"
 assert checkout.get("with", {}).get("persist-credentials") in (False, "false"), "checkout credentials must be disabled"
+
+step_names = [step.get("name") for step in steps]
+assert "Preflight Closed Firmware" in step_names, "missing closed firmware preflight step"
+assert step_names.index("Preflight Closed Firmware") < step_names.index("Configure Closed Firmware"), (
+    "closed firmware preflight must run before configuration"
+)
+preflight = next(step for step in steps if step.get("name") == "Preflight Closed Firmware")
+preflight_run = str(preflight.get("run", ""))
+assert 'Scripts/PreflightC8Closed25.sh" ./wrt/' in preflight_run, "preflight is missing its runner"
+preflight_script = (path.parents[2] / "Scripts" / "PreflightC8Closed25.sh").read_text(encoding="utf-8")
+for fragment in ('make defconfig', 'Scripts/ValidateC8ClosedBuild.sh" config .config'):
+    assert fragment in preflight_script, f"preflight is missing: {fragment}"
 
 packages = next((step for step in steps if step.get("name") == "Install Custom Packages"), None)
 assert packages is not None, "missing custom package installation step"
