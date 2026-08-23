@@ -10,7 +10,7 @@ on:
       wrt_branch:
         description: "ImmortalWrt branch to build"
         required: true
-        default: "openwrt-25.12"
+        default: "master"
         type: string
       wrt_ref:
         description: "Optional ImmortalWrt commit, tag, or ref override"
@@ -42,26 +42,18 @@ on:
         required: true
         default: "3"
         type: string
-      wrt_pw:
-        description: "Optional root password override for this build"
-        required: false
-        default: ""
-        type: string
 
 permissions:
   contents: read
 
 env:
-  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   WRT_CONFIG: NRADIO-C8-660
   WRT_THEME: aurora
   WRT_NAME: NRadio-C8-660
   WRT_SSID: NRadio
-  WRT_WORD: ${{ secrets.WRT_WORD || '' }}
   WRT_IP: 192.168.1.1
-  WRT_PW: ${{ inputs.wrt_pw || secrets.WRT_PW || '' }}
   WRT_REPO: https://github.com/immortalwrt/immortalwrt
-  WRT_BRANCH: ${{ inputs.wrt_branch || 'openwrt-25.12' }}
+  WRT_BRANCH: ${{ inputs.wrt_branch || 'master' }}
   WRT_REF: ${{ inputs.wrt_ref || '' }}
   ENABLE_WED: ${{ inputs.enable_wed }}
   ENABLE_FLOW_OFFLOADING: ${{ inputs.enable_flow_offloading }}
@@ -76,6 +68,8 @@ jobs:
     steps:
       - name: Checkout Projects
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          persist-credentials: false
 
       - name: Initialization Environment
         env:
@@ -223,6 +217,8 @@ jobs:
             ./wrt/dl
 
       - name: Update Caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           if [ -d "./wrt/staging_dir" ]; then
@@ -257,17 +253,72 @@ jobs:
         run: |
           set -euo pipefail
 
+          PROXY_ENABLED=false
+          for CFG in \
+            "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt" \
+            "$GITHUB_WORKSPACE/Config/OPEN.txt" \
+            "$GITHUB_WORKSPACE/Config/GENERAL.txt" \
+            "$GITHUB_WORKSPACE/Config/PRIVATE.txt"
+          do
+            if [ -f "$CFG" ] && grep -Eq '^CONFIG_PACKAGE_(luci-app-homeproxy|sing-box)=y$' "$CFG"; then
+              PROXY_ENABLED=true
+            fi
+          done
+          echo "PROXY_LOCKS_ENABLED=$PROXY_ENABLED" >> "$GITHUB_ENV"
+          if [ "$PROXY_ENABLED" != "true" ]; then
+            echo "HomeProxy/sing-box not enabled; skipping proxy locks"
+            exit 0
+          fi
+
           LOCK_FILE="$GITHUB_WORKSPACE/.github/proxy-locks.env"
           if [ ! -f "$LOCK_FILE" ]; then
             echo "::error::proxy lock file not found: $LOCK_FILE"
             exit 1
           fi
 
-          cat "$LOCK_FILE" >> "$GITHUB_ENV"
+          validate_lock() {
+            local key="$1"
+            local value="$2"
+            case "$key" in
+              SING_BOX_TAG)
+                [[ "$value" =~ ^v[0-9]+(\.[0-9]+){1,3}$ ]]
+                ;;
+              SING_BOX_VERSION)
+                [[ "$value" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]
+                ;;
+              SING_BOX_HASH)
+                [[ "$value" =~ ^[0-9a-f]{64}$ ]]
+                ;;
+              PKG_LOCK_homeproxy_BRANCH)
+                [[ "$value" =~ ^[A-Za-z0-9._/-]+$ ]]
+                ;;
+              PKG_LOCK_homeproxy_COMMIT)
+                [[ "$value" =~ ^[0-9a-f]{40}$ ]]
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          while IFS='=' read -r KEY VALUE; do
+            [ -n "$KEY" ] || continue
+            case "$KEY" in \#*) continue ;; esac
+            VALUE="${VALUE%$'\r'}"
+            if ! validate_lock "$KEY" "$VALUE"; then
+              echo "::error::invalid proxy lock entry: $KEY"
+              exit 1
+            fi
+            printf '%s=%s\n' "$KEY" "$VALUE" >> "$GITHUB_ENV"
+          done < "$LOCK_FILE"
 
       - name: Apply sing-box lock
         run: |
-          bash "$GITHUB_WORKSPACE/Scripts/ApplyProxyLocks.sh" ./wrt/
+          if [ "${PROXY_LOCKS_ENABLED:-false}" = "true" ]; then
+            bash "$GITHUB_WORKSPACE/Scripts/ApplyProxyLocks.sh" ./wrt/
+          else
+            echo "HomeProxy/sing-box not enabled; skipping sing-box lock"
+          fi
 
       - name: Patch LuCI JS (fix formatStats crash)
         run: |
@@ -331,6 +382,9 @@ jobs:
           wc -l target/linux/mediatek/image/filogic.mk
 
       - name: Custom Settings
+        env:
+          WRT_WORD: ${{ secrets.WRT_WORD || '' }}
+          WRT_PW: ${{ secrets.WRT_PW || '' }}
         run: |
           cd ./wrt/
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
@@ -449,7 +503,9 @@ jobs:
 
       - name: Package Firmware
         run: |
-          cd ./wrt/ && mkdir -p ./upload/
+          cd ./wrt/
+          rm -rf ./upload/
+          mkdir -p ./upload/
 
           KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -1)
           LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')
@@ -458,42 +514,43 @@ jobs:
 
           find ./bin/targets/ -iregex ".*\(buildinfo\|json\|packages\)$" -exec rm -rf {} +
 
-          # 保留关键镜像，统一命名
-          find ./bin/targets/ -type f \( \
-            -iname "*factory*" -o \
-            -iname "*sysupgrade*" -o \
-            -iname "*initramfs*" -o \
-            -iname "*bl2*" -o \
-            -iname "*manifest*" -o \
-            -iname "*sha256sums*" -o \
-            -iname "*.dtb" \
-          \) -print | while IFS= read -r FILE; do
-            BASENAME=$(basename "$FILE")
-            cp -f "$FILE" "./upload/$BASENAME"
-          done
+          copy_unique_artifact() {
+            local pattern="$1"
+            local output="$2"
+            local desc="$3"
+            mapfile -t MATCHES < <(find ./bin/targets/ -type f -iname "$pattern" | sort)
+            if [ "${#MATCHES[@]}" -ne 1 ]; then
+              echo "::error::Expected exactly one $desc matching $pattern, found ${#MATCHES[@]}"
+              printf '%s\n' "${MATCHES[@]}"
+              exit 1
+            fi
+            cp -f "${MATCHES[0]}" "./upload/$output"
+            echo "Packaged $desc: ${MATCHES[0]} -> ./upload/$output"
+          }
 
-          # 只保留 C8-660 所需的 BL2
-          find ./upload/ -type f -iname "*bl2*" ! -iname "mt7981*" -delete
+          copy_unique_artifact '*squashfs-factory*.bin' 'immortalwrt-c8-660-factory.bin' 'factory image'
+          copy_unique_artifact '*squashfs-sysupgrade*.bin' 'immortalwrt-c8-660-sysupgrade.bin' 'sysupgrade image'
+          copy_unique_artifact '*initramfs*.bin' 'immortalwrt-c8-660-initramfs.bin' 'initramfs image'
+          copy_unique_artifact '*mt7981*ddr4*bl2*.bin' 'mt7981-bl2.bin' 'MT7981 DDR4 BL2'
+          copy_unique_artifact '*.manifest' 'immortalwrt-c8-660.manifest' 'package manifest'
 
-          # 固件重命名
-          for FILE in ./upload/*.bin; do
-            [ -f "$FILE" ] || continue
-            BASE=$(basename "$FILE")
-            case "$BASE" in
-              *squashfs-factory*)  SHORT="immortalwrt-c8-660-factory.bin" ;;
-              *squashfs-sysupgrade*) SHORT="immortalwrt-c8-660-sysupgrade.bin" ;;
-              *initramfs*)        SHORT="immortalwrt-c8-660-initramfs.bin" ;;
-              *bl2*)              SHORT="mt7981-bl2.bin" ;;
-              *)                  continue ;;
-            esac
-            mv -f "$FILE" "./upload/$SHORT"
-          done
+          (
+            cd ./upload/
+            sha256sum \
+              immortalwrt-c8-660-factory.bin \
+              immortalwrt-c8-660-sysupgrade.bin \
+              immortalwrt-c8-660-initramfs.bin \
+              mt7981-bl2.bin \
+              immortalwrt-c8-660.manifest \
+              > sha256sums
+          )
 
           REQUIRED_FILES="
           ./upload/immortalwrt-c8-660-factory.bin
           ./upload/immortalwrt-c8-660-sysupgrade.bin
           ./upload/immortalwrt-c8-660-initramfs.bin
           ./upload/mt7981-bl2.bin
+          ./upload/immortalwrt-c8-660.manifest
           ./upload/sha256sums
           "
           for FILE in $REQUIRED_FILES; do
@@ -503,11 +560,6 @@ jobs:
               exit 1
             fi
           done
-          if ! find ./upload/ -maxdepth 1 -type f -name "*.manifest" -size +0c | grep -q .; then
-            echo "::error::Required manifest artifact missing"
-            find ./upload/ -maxdepth 1 -type f -print | sort
-            exit 1
-          fi
           find ./upload/ -maxdepth 1 -type f -print | sort
 
       - name: Validate Firmware Rootfs
@@ -527,6 +579,12 @@ jobs:
           [ -n "$UNSQUASHFS" ] && [ -x "$UNSQUASHFS" ] || { echo "::error::unsquashfs not found"; exit 1; }
 
           "$UNSQUASHFS" -ll "$ROOTFS" > "$ROOTFS_LIST"
+          MANIFEST_FILE="/tmp/c8-660-manifests.list"
+          : > "$MANIFEST_FILE"
+          while IFS= read -r -d '' MANIFEST; do
+            cat "$MANIFEST" >> "$MANIFEST_FILE"
+          done < <(find ./upload/ -maxdepth 1 -type f -name "*.manifest" -size +0c -print0 | sort -z)
+          [ -s "$MANIFEST_FILE" ] || { echo "::error::Required manifest artifact missing"; exit 1; }
 
           require_rootfs() {
             local pattern="$1"
@@ -535,10 +593,152 @@ jobs:
               echo "OK: $desc"
             else
               echo "::error::Missing $desc ($pattern)"
-              grep -Ei 'mt76|mt7915|mt7981|mac80211|cfg80211|qmi|sms|sendat|modem|luci|wireless|firewall|aurora|partexp|ttyd|upnp|wol|zerotier' "$ROOTFS_LIST" | tail -120 || true
+              grep -Ei 'mt76|mt7915|mt7981|mac80211|cfg80211|qmi|sms|sendat|modem|luci|wireless|firewall|aurora' "$ROOTFS_LIST" | tail -120 || true
               exit 1
             fi
           }
+
+          reject_rootfs() {
+            local pattern="$1"
+            local desc="$2"
+            if grep -Eq "$pattern" "$ROOTFS_LIST"; then
+              echo "::error::Unexpected file in rootfs: $desc ($pattern)"
+              grep -E "$pattern" "$ROOTFS_LIST" || true
+              exit 1
+            fi
+            echo "OK: no $desc"
+          }
+
+          config_enabled() {
+            grep -qs "^CONFIG_PACKAGE_$1=y$" .config
+          }
+
+          require_manifest_package() {
+            local pkg="$1"
+            if grep -Eq "^${pkg}[[:space:]]+-[[:space:]]+" "$MANIFEST_FILE"; then
+              echo "OK: manifest contains $pkg"
+            else
+              echo "::error::Missing manifest package: $pkg"
+              grep -E "^(luci-app-|sing-box|kmod-nft-|kmod-mtd-rw|tcpdump|openssh-sftp-server|socat|ttyd|miniupnpd|etherwake|zerotier)" "$MANIFEST_FILE" || true
+              exit 1
+            fi
+          }
+
+          reject_manifest_package() {
+            local pkg="$1"
+            if grep -Eq "^${pkg}[[:space:]]+-[[:space:]]+" "$MANIFEST_FILE"; then
+              echo "::error::Unexpected manifest package: $pkg"
+              grep -E "^${pkg}[[:space:]]+-[[:space:]]+" "$MANIFEST_FILE" || true
+              exit 1
+            fi
+            echo "OK: manifest excludes $pkg"
+          }
+
+          if config_enabled 'luci-app-package-manager'; then
+            require_manifest_package 'luci-app-package-manager'
+          else
+            reject_manifest_package 'luci-app-package-manager'
+          fi
+          if config_enabled 'luci-app-partexp'; then
+            require_manifest_package 'luci-app-partexp'
+          else
+            reject_manifest_package 'luci-app-partexp'
+          fi
+          if config_enabled 'luci-app-ttyd'; then
+            require_manifest_package 'luci-app-ttyd'
+          else
+            reject_manifest_package 'luci-app-ttyd'
+          fi
+          if config_enabled 'ttyd'; then
+            require_manifest_package 'ttyd'
+          else
+            reject_manifest_package 'ttyd'
+          fi
+          if config_enabled 'luci-app-upnp'; then
+            require_manifest_package 'luci-app-upnp'
+          else
+            reject_manifest_package 'luci-app-upnp'
+          fi
+          if config_enabled 'miniupnpd-nftables'; then
+            require_manifest_package 'miniupnpd-nftables'
+          else
+            reject_manifest_package 'miniupnpd-nftables'
+          fi
+          if config_enabled 'luci-app-wol'; then
+            require_manifest_package 'luci-app-wol'
+          else
+            reject_manifest_package 'luci-app-wol'
+          fi
+          if config_enabled 'etherwake'; then
+            require_manifest_package 'etherwake'
+          else
+            reject_manifest_package 'etherwake'
+          fi
+          if config_enabled 'luci-app-zerotier'; then
+            require_manifest_package 'luci-app-zerotier'
+          else
+            reject_manifest_package 'luci-app-zerotier'
+          fi
+          if config_enabled 'zerotier'; then
+            require_manifest_package 'zerotier'
+          else
+            reject_manifest_package 'zerotier'
+          fi
+          if config_enabled 'tcpdump'; then
+            require_manifest_package 'tcpdump'
+          else
+            reject_manifest_package 'tcpdump'
+          fi
+          if config_enabled 'tcpdump-mini'; then
+            require_manifest_package 'tcpdump-mini'
+          else
+            reject_manifest_package 'tcpdump-mini'
+          fi
+          if config_enabled 'kmod-mtd-rw'; then
+            require_manifest_package 'kmod-mtd-rw'
+          else
+            reject_manifest_package 'kmod-mtd-rw'
+          fi
+          if config_enabled 'openssh-sftp-server'; then
+            require_manifest_package 'openssh-sftp-server'
+          else
+            reject_manifest_package 'openssh-sftp-server'
+          fi
+          if config_enabled 'socat'; then
+            require_manifest_package 'socat'
+          else
+            reject_manifest_package 'socat'
+          fi
+          if config_enabled 'luci-app-homeproxy'; then
+            require_manifest_package 'luci-app-homeproxy'
+          else
+            reject_manifest_package 'luci-app-homeproxy'
+          fi
+          if config_enabled 'sing-box'; then
+            require_manifest_package 'sing-box'
+          else
+            reject_manifest_package 'sing-box'
+          fi
+          if config_enabled 'kmod-nf-socket'; then
+            require_manifest_package 'kmod-nf-socket'
+          else
+            reject_manifest_package 'kmod-nf-socket'
+          fi
+          if config_enabled 'kmod-nf-tproxy'; then
+            require_manifest_package 'kmod-nf-tproxy'
+          else
+            reject_manifest_package 'kmod-nf-tproxy'
+          fi
+          if config_enabled 'kmod-nft-socket'; then
+            require_manifest_package 'kmod-nft-socket'
+          else
+            reject_manifest_package 'kmod-nft-socket'
+          fi
+          if config_enabled 'kmod-nft-tproxy'; then
+            require_manifest_package 'kmod-nft-tproxy'
+          else
+            reject_manifest_package 'kmod-nft-tproxy'
+          fi
 
           # mt76 WiFi stack
           require_rootfs 'lib/modules/.*/cfg80211\.ko' 'cfg80211 kernel module'
@@ -581,27 +781,303 @@ jobs:
           require_rootfs 'www/luci-static/resources/view/network/wireless\.js' 'LuCI wireless page'
           require_rootfs 'www/luci-static/resources/view/network/interfaces\.js' 'LuCI interfaces page'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-firewall\.json' 'LuCI firewall app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-package-manager\.json' 'LuCI package manager app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-partexp\.json' 'LuCI partition expansion app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-ttyd\.json' 'LuCI ttyd app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-zerotier\.json' 'LuCI ZeroTier app'
-          require_rootfs 'www/luci-static/resources/view/zerotier/config\.js' 'LuCI ZeroTier config page'
-          require_rootfs 'etc/init\.d/zerotier' 'ZeroTier init service'
-          require_rootfs 'usr/bin/zerotier-one' 'ZeroTier daemon'
-          require_rootfs 'usr/bin/sing-box' 'sing-box proxy core'
-          require_rootfs 'etc/init\.d/homeproxy' 'HomeProxy init service'
-          require_rootfs 'etc/config/homeproxy' 'HomeProxy UCI config'
-          require_rootfs 'usr/share/luci/menu\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy app'
-          require_rootfs 'usr/share/rpcd/acl\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy ACL'
-          require_rootfs 'www/luci-static/resources/view/homeproxy/client\.js' 'HomeProxy client page'
-          require_rootfs 'www/luci-static/resources/view/homeproxy/node\.js' 'HomeProxy node page'
-          require_rootfs 'www/luci-static/resources/view/homeproxy/status\.js' 'HomeProxy status page'
-          require_rootfs 'etc/homeproxy/scripts/generate_client\.uc' 'HomeProxy client config generator'
-          require_rootfs 'etc/homeproxy/scripts/update_subscriptions\.uc' 'HomeProxy subscription updater'
-          require_rootfs 'usr/lib/ucode/digest\.so' 'ucode digest module for HomeProxy'
-          require_rootfs 'lib/modules/.*/nft_tproxy\.ko' 'NFT tproxy kernel module'
+          if config_enabled 'luci-app-package-manager'; then
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-package-manager\.json' 'LuCI package manager app'
+            require_rootfs 'www/luci-static/resources/view/package-manager\.js' 'LuCI package manager view'
+            require_rootfs 'usr/share/rpcd/acl\.d/luci-app-package-manager\.json' 'LuCI package manager ACL'
+            require_rootfs 'usr/libexec/package-manager-call' 'LuCI package manager backend'
+          else
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-package-manager\.json' 'LuCI package manager app'
+            reject_rootfs 'www/luci-static/resources/view/package-manager\.js' 'LuCI package manager view'
+            reject_rootfs 'usr/share/rpcd/acl\.d/luci-app-package-manager\.json' 'LuCI package manager ACL'
+            reject_rootfs 'usr/libexec/package-manager-call' 'LuCI package manager backend'
+          fi
+          if config_enabled 'luci-app-partexp'; then
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-partexp\.json' 'LuCI partition expansion app'
+            require_rootfs 'usr/libexec/rpcd/partexp' 'partition expansion RPC backend'
+            require_rootfs 'usr/bin/partexp' 'partition expansion helper'
+          else
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-partexp\.json' 'LuCI partition expansion app'
+            reject_rootfs 'usr/libexec/rpcd/partexp' 'partition expansion RPC backend'
+            reject_rootfs 'usr/bin/partexp' 'partition expansion helper'
+          fi
+          if config_enabled 'luci-app-ttyd'; then
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-ttyd\.json' 'LuCI ttyd app'
+          else
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-ttyd\.json' 'LuCI ttyd app'
+          fi
+          if config_enabled 'luci-app-ttyd' || config_enabled 'ttyd'; then
+            require_rootfs 'etc/init\.d/ttyd' 'ttyd init service'
+            require_rootfs 'usr/bin/ttyd' 'ttyd daemon'
+          else
+            reject_rootfs 'etc/init\.d/ttyd' 'ttyd init service'
+            reject_rootfs 'usr/bin/ttyd' 'ttyd daemon'
+          fi
+          if config_enabled 'luci-app-upnp'; then
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
+          else
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-upnp\.json' 'LuCI UPnP app'
+          fi
+          if config_enabled 'luci-app-upnp' || config_enabled 'miniupnpd-nftables'; then
+            require_rootfs 'etc/init\.d/miniupnpd' 'miniupnpd init service'
+            require_rootfs 'usr/sbin/miniupnpd' 'miniupnpd daemon'
+          else
+            reject_rootfs 'etc/init\.d/miniupnpd' 'miniupnpd init service'
+            reject_rootfs 'usr/sbin/miniupnpd' 'miniupnpd daemon'
+          fi
+          if config_enabled 'luci-app-wol'; then
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
+          else
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
+          fi
+          if config_enabled 'luci-app-wol' || config_enabled 'etherwake'; then
+            require_rootfs 'usr/bin/etherwake' 'etherwake helper'
+          else
+            reject_rootfs 'usr/bin/etherwake' 'etherwake helper'
+          fi
+          if config_enabled 'luci-app-zerotier'; then
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-zerotier\.json' 'LuCI ZeroTier app'
+            require_rootfs 'www/luci-static/resources/view/zerotier/config\.js' 'LuCI ZeroTier config page'
+          else
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-zerotier\.json' 'LuCI ZeroTier app'
+            reject_rootfs 'www/luci-static/resources/view/zerotier/config\.js' 'LuCI ZeroTier config page'
+          fi
+          if config_enabled 'luci-app-zerotier' || config_enabled 'zerotier'; then
+            require_rootfs 'etc/init\.d/zerotier' 'ZeroTier init service'
+            require_rootfs 'usr/bin/zerotier-one' 'ZeroTier daemon'
+          else
+            reject_rootfs 'etc/init\.d/zerotier' 'ZeroTier init service'
+            reject_rootfs 'usr/bin/zerotier-one' 'ZeroTier daemon'
+          fi
+          if config_enabled 'tcpdump' || config_enabled 'tcpdump-mini'; then
+            require_rootfs 'usr/(s)?bin/tcpdump' 'tcpdump packet capture tool'
+          else
+            reject_rootfs 'usr/(s)?bin/tcpdump' 'tcpdump packet capture tool'
+          fi
+          if config_enabled 'kmod-mtd-rw'; then
+            require_rootfs 'lib/modules/.*/mtd-rw\.ko' 'MTD rw kernel module'
+          else
+            reject_rootfs 'lib/modules/.*/mtd-rw\.ko' 'MTD rw kernel module'
+          fi
+          if config_enabled 'openssh-sftp-server'; then
+            require_rootfs 'usr/libexec/sftp-server|usr/lib/sftp-server' 'OpenSSH SFTP server'
+          else
+            reject_rootfs 'usr/libexec/sftp-server|usr/lib/sftp-server' 'OpenSSH SFTP server'
+          fi
+          if config_enabled 'socat'; then
+            require_rootfs 'usr/bin/socat' 'socat multipurpose relay'
+          else
+            reject_rootfs 'usr/bin/socat' 'socat multipurpose relay'
+          fi
+          if config_enabled 'sing-box'; then
+            require_rootfs 'usr/bin/sing-box' 'sing-box proxy core'
+            LOCKED_SING_BOX_VERSION=""
+            if [ -f "$GITHUB_WORKSPACE/.github/proxy-locks.env" ]; then
+              LOCKED_SING_BOX_VERSION="$(sed -n 's/^SING_BOX_VERSION=//p' "$GITHUB_WORKSPACE/.github/proxy-locks.env" | head -1 | tr -d '\r')"
+            fi
+            SING_BOX_MANIFEST_VERSION="$(awk '$1 == "sing-box" && $2 == "-" { print $3; exit }' "$MANIFEST_FILE")"
+            if [ -z "$SING_BOX_MANIFEST_VERSION" ]; then
+              echo "::error::sing-box manifest version was not found"
+              exit 1
+            fi
+            if [ -n "$LOCKED_SING_BOX_VERSION" ]; then
+              case "$SING_BOX_MANIFEST_VERSION" in
+                "$LOCKED_SING_BOX_VERSION"|"$LOCKED_SING_BOX_VERSION"-*) ;;
+                *)
+                  echo "::error::sing-box manifest version ${SING_BOX_MANIFEST_VERSION} does not match lock ${LOCKED_SING_BOX_VERSION}"
+                  exit 1
+                  ;;
+              esac
+            fi
+            DETECTED_SING_BOX_VERSION="${SING_BOX_MANIFEST_VERSION%%-*}"
+            echo "OK: sing-box manifest version ${SING_BOX_MANIFEST_VERSION}"
+          else
+            reject_rootfs 'usr/bin/sing-box' 'sing-box proxy core'
+          fi
+          if config_enabled 'luci-app-homeproxy'; then
+            require_rootfs 'etc/init\.d/homeproxy' 'HomeProxy init service'
+            require_rootfs 'etc/config/homeproxy' 'HomeProxy UCI config'
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy app'
+            require_rootfs 'usr/share/rpcd/acl\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy ACL'
+            require_rootfs 'www/luci-static/resources/homeproxy\.js' 'HomeProxy shared LuCI helper'
+            require_rootfs 'www/luci-static/resources/view/homeproxy/client\.js' 'HomeProxy client page'
+            require_rootfs 'www/luci-static/resources/view/homeproxy/node\.js' 'HomeProxy node page'
+            require_rootfs 'www/luci-static/resources/view/homeproxy/server\.js' 'HomeProxy server page'
+            require_rootfs 'www/luci-static/resources/view/homeproxy/status\.js' 'HomeProxy status page'
+            require_rootfs 'etc/homeproxy/scripts/generate_client\.uc' 'HomeProxy client config generator'
+            require_rootfs 'etc/homeproxy/scripts/update_subscriptions\.uc' 'HomeProxy subscription updater'
+            require_rootfs 'etc/uci-defaults/99-homeproxy-modern-defaults' 'HomeProxy modern subscription defaults'
+            require_rootfs 'usr/lib/ucode/digest\.so' 'ucode digest module for HomeProxy'
+            HOMEPROXY_NODE_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/view/homeproxy/node.js)"
+            HOMEPROXY_SHARED_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/homeproxy.js)"
+            if printf '%s' "$HOMEPROXY_NODE_JS" | grep -Eq "o.value\('vmess'|o.value\('shadowtls'|o.value\('ssh'|o.value\('socks'|o.value\('hysteria',"; then
+              echo "::error::HomeProxy node UI still exposes legacy protocol choices"
+              printf '%s\n' "$HOMEPROXY_NODE_JS" | grep -nE "o.value\('vmess'|o.value\('shadowtls'|o.value\('ssh'|o.value\('socks'|o.value\('hysteria'," || true
+              exit 1
+            fi
+            if printf '%s\n%s' "$HOMEPROXY_NODE_JS" "$HOMEPROXY_SHARED_JS" | grep -Eq "aes-128-ctr|aes-192-ctr|aes-256-ctr|aes-128-cfb|aes-192-cfb|aes-256-cfb|chacha20'|chacha20-ietf'|rc4-md5"; then
+              echo "::error::HomeProxy LuCI still exposes legacy Shadowsocks methods"
+              printf '%s\n%s' "$HOMEPROXY_NODE_JS" "$HOMEPROXY_SHARED_JS" | grep -nE "aes-128-ctr|aes-192-ctr|aes-256-ctr|aes-128-cfb|aes-192-cfb|aes-256-cfb|chacha20'|chacha20-ietf'|rc4-md5" || true
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_NODE_JS" | grep -Fq "hp.shadowsocks_encrypt_methods"; then
+              echo "::error::HomeProxy node page does not use shared Shadowsocks method list"
+              exit 1
+            fi
+            HOMEPROXY_MENU_JSON="$("$UNSQUASHFS" -cat "$ROOTFS" usr/share/luci/menu.d/luci-app-homeproxy.json)"
+            if printf '%s' "$HOMEPROXY_MENU_JSON" | grep -Fq "admin/services/homeproxy/server"; then
+              echo "::error::HomeProxy server menu entry is still exposed"
+              exit 1
+            fi
+            HOMEPROXY_SERVER_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/view/homeproxy/server.js)"
+            if ! printf '%s' "$HOMEPROXY_SERVER_JS" | grep -Fq "o.readonly = true;" || ! printf '%s' "$HOMEPROXY_SERVER_JS" | grep -Fq "o.default = o.disabled;"; then
+              echo "::error::HomeProxy server page is not forced disabled/read-only"
+              exit 1
+            fi
+            HOMEPROXY_GENERATOR="$("$UNSQUASHFS" -cat "$ROOTFS" etc/homeproxy/scripts/generate_client.uc)"
+            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -q 'modern_node_types'; then
+              echo "::error::HomeProxy generator is missing modern-node guard"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "inbound: ['mixed-in', 'redirect-in', 'tproxy-in', 'tun-in']"; then
+              echo "::error::HomeProxy generator is missing sing-box route sniff action"
+              exit 1
+            fi
+            if printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "sniff_override_destination: strToBool(sniff_override)" || printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "sniff: true"; then
+              echo "::error::HomeProxy generator still contains legacy sing-box inbound sniff fields"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const main_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_urltest_nodes')"; then
+              echo "::error::HomeProxy generator does not filter stale main urltest nodes"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const main_udp_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes')"; then
+              echo "::error::HomeProxy generator does not filter stale UDP urltest nodes"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const cfg_urltest_nodes = filter(cfg.urltest_nodes || []"; then
+              echo "::error::HomeProxy generator does not filter stale custom urltest nodes"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "!is_modern_node(urltest_node)"; then
+              echo "::error::HomeProxy generator does not filter standalone stale/legacy urltest outbound nodes"
+              exit 1
+            fi
+            DETECTED_SING_BOX_VERSION="${DETECTED_SING_BOX_VERSION:-0.0.0}"
+            version_ge() {
+              awk -v have="$1" -v need="$2" '
+                function splitver(v, a) { split(v, a, /[.+_-]/) }
+                BEGIN {
+                  splitver(have, h); splitver(need, n)
+                  for (i = 1; i <= 4; i++) {
+                    hv = (h[i] == "" ? 0 : h[i] + 0)
+                    nv = (n[i] == "" ? 0 : n[i] + 0)
+                    if (hv > nv) exit 0
+                    if (hv < nv) exit 1
+                  }
+                  exit 0
+                }'
+            }
+            if version_ge "$DETECTED_SING_BOX_VERSION" "1.14.0"; then
+              if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "default_http_client: 'direct-http'"; then
+                echo "::error::HomeProxy generator is missing sing-box 1.14 direct HTTP client default"
+                exit 1
+              fi
+              if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "tag: 'direct-http'"; then
+                echo "::error::HomeProxy generator is missing sing-box 1.14 direct HTTP client definition"
+                exit 1
+              fi
+              HTTP_CLIENT_DEFS="$(printf '%s' "$HOMEPROXY_GENERATOR" | awk 'index($0, "config.http_clients = [") || index($0, "http_clients: [") { count++ } END { print count + 0 }')"
+              if [ "$HTTP_CLIENT_DEFS" -ne 1 ]; then
+                echo "::error::Unexpected HomeProxy HTTP client definition count for sing-box ${DETECTED_SING_BOX_VERSION}: ${HTTP_CLIENT_DEFS}"
+                exit 1
+              fi
+              HTTP_CLIENT_USES="$(printf '%s' "$HOMEPROXY_GENERATOR" | awk 'index($0, "http_client: '\''direct-http'\''") { count++ } END { print count + 0 }')"
+              if [ "$HTTP_CLIENT_USES" -lt 3 ]; then
+                echo "::error::HomeProxy generator does not use direct HTTP client for remote rule-set bootstrap"
+                exit 1
+              fi
+              if printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "download_detour:"; then
+                echo "::error::HomeProxy generator still uses deprecated download_detour for sing-box ${DETECTED_SING_BOX_VERSION}"
+                exit 1
+              fi
+            else
+              if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "download_detour: 'direct-out'"; then
+                echo "::error::HomeProxy generator does not force rule-set bootstrap downloads to direct-out"
+                exit 1
+              fi
+              DIRECT_DETOURS="$(printf '%s' "$HOMEPROXY_GENERATOR" | awk 'index($0, "download_detour: '\''direct-out'\''") { count++ } END { print count + 0 }')"
+              if [ "$DIRECT_DETOURS" -lt 3 ]; then
+                echo "::error::HomeProxy generator does not consistently force rule-set bootstrap downloads to direct-out"
+                exit 1
+              fi
+              if printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "download_detour: 'main-out'"; then
+                echo "::error::HomeProxy generator still bootstraps rule-set downloads through main-out"
+                exit 1
+              fi
+            fi
+            HOMEPROXY_UPDATER="$("$UNSQUASHFS" -cat "$ROOTFS" etc/homeproxy/scripts/update_subscriptions.uc)"
+            if ! printf '%s' "$HOMEPROXY_UPDATER" | grep -Fq "function modern_check"; then
+              echo "::error::HomeProxy updater is missing modern subscription node filter"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_UPDATER" | grep -Fq "config = modern_check(config);"; then
+              echo "::error::HomeProxy updater does not apply modern subscription node filter"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_UPDATER" | grep -Fq "case 'vmess':"; then
+              echo "::error::HomeProxy updater is missing VMess rejection path"
+              exit 1
+            fi
+            if printf '%s' "$HOMEPROXY_UPDATER" | grep -Eq "aes-128-ctr|aes-192-ctr|aes-256-ctr|aes-128-cfb|aes-192-cfb|aes-256-cfb|chacha20'|chacha20-ietf'|rc4-md5"; then
+              echo "::error::HomeProxy updater still allows legacy Shadowsocks methods"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_UPDATER" | grep -Fq "function is_placeholder_subscription_node"; then
+              echo "::error::HomeProxy updater is missing placeholder subscription node filter"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_UPDATER" | grep -Fq "Skipping placeholder subscription node"; then
+              echo "::error::HomeProxy updater does not log skipped placeholder subscription nodes"
+              exit 1
+            fi
+            if ! printf '%s' "$HOMEPROXY_UPDATER" | grep -Fq "No main node is selected, switching to the first node"; then
+              echo "::error::HomeProxy updater is missing first subscription node fallback"
+              exit 1
+            fi
+            HOMEPROXY_DEFAULTS="$("$UNSQUASHFS" -cat "$ROOTFS" etc/uci-defaults/99-homeproxy-modern-defaults)"
+            if ! printf '%s' "$HOMEPROXY_DEFAULTS" | grep -Fq "homeproxy.subscription.user_agent='v2ray'" || ! printf '%s' "$HOMEPROXY_DEFAULTS" | grep -Fq "homeproxy.subscription.allow_insecure='0'"; then
+              echo "::error::HomeProxy subscription defaults are missing v2ray user-agent or allow_insecure=0"
+              exit 1
+            fi
+            echo "OK: HomeProxy modern client mode is enforced"
+          else
+            reject_rootfs 'etc/init\.d/homeproxy' 'HomeProxy init service'
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy app'
+            reject_rootfs 'usr/share/rpcd/acl\.d/luci-app-homeproxy\.json' 'LuCI HomeProxy ACL'
+            reject_rootfs 'www/luci-static/resources/view/homeproxy/' 'LuCI HomeProxy views'
+            reject_rootfs 'etc/uci-defaults/99-homeproxy-modern-defaults' 'HomeProxy modern subscription defaults'
+          fi
+          if config_enabled 'kmod-nft-tproxy'; then
+            require_rootfs 'lib/modules/.*/nft_tproxy\.ko' 'NFT tproxy kernel module'
+          else
+            reject_rootfs 'lib/modules/.*/nft_tproxy\.ko' 'NFT tproxy kernel module'
+          fi
+          if config_enabled 'kmod-nft-socket'; then
+            require_rootfs 'lib/modules/.*/nft_socket\.ko' 'NFT socket kernel module'
+          else
+            reject_rootfs 'lib/modules/.*/nft_socket\.ko' 'NFT socket kernel module'
+          fi
+          if config_enabled 'kmod-nf-tproxy'; then
+            require_rootfs 'lib/modules/.*/nf_tproxy_ipv[46]\.ko' 'NF tproxy dependency kernel module'
+          else
+            reject_rootfs 'lib/modules/.*/nf_tproxy_ipv[46]\.ko' 'NF tproxy dependency kernel module'
+          fi
+          if config_enabled 'kmod-nf-socket'; then
+            require_rootfs 'lib/modules/.*/nf_socket_ipv[46]\.ko' 'NF socket dependency kernel module'
+          else
+            reject_rootfs 'lib/modules/.*/nf_socket_ipv[46]\.ko' 'NF socket dependency kernel module'
+          fi
           require_rootfs 'usr/bin/cellscan\.sh' 'C8 base station scan helper'
           require_rootfs 'usr/share/luci/menu\.d/luci-app-c8modem\.json' 'C8 modem LuCI JS menu'
           require_rootfs 'usr/share/rpcd/acl\.d/luci-app-c8modem\.json' 'C8 modem LuCI ACL'
@@ -665,17 +1141,6 @@ jobs:
           fi
           echo "OK: C8 SMS timeout guards and WeChatPush isolation are enforced"
 
-          reject_rootfs() {
-            local pattern="$1"
-            local desc="$2"
-            if grep -Eq "$pattern" "$ROOTFS_LIST"; then
-              echo "::error::Unexpected legacy file in rootfs: $desc ($pattern)"
-              grep -E "$pattern" "$ROOTFS_LIST" || true
-              exit 1
-            fi
-            echo "OK: no $desc"
-          }
-
           reject_rootfs 'usr/lib/lua/luci/model/cbi/smsconfig\.lua' 'legacy LuCI SMS config CBI'
           reject_rootfs 'usr/lib/lua/luci/c8modem/safe\.lua' 'legacy C8 LuCI Lua helper'
           reject_rootfs 'usr/lib/lua/luci/controller/sms\.lua' 'legacy C8 SMS LuCI API controller'
@@ -697,24 +1162,6 @@ jobs:
           reject_rootfs 'usr/bin/ss-redir' 'legacy shadowsocks-libev redir'
           reject_rootfs 'usr/share/luci/menu\.d/luci-app-passwall.*\.json' 'legacy PassWall LuCI app'
           reject_rootfs 'usr/share/luci/menu\.d/luci-app-openclash\.json' 'legacy OpenClash LuCI app'
-
-          HOMEPROXY_NODE_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/view/homeproxy/node.js)"
-          if printf '%s' "$HOMEPROXY_NODE_JS" | grep -Eq "o.value\('vmess'|o.value\('shadowtls'|o.value\('ssh'|o.value\('socks'|o.value\('hysteria',"; then
-            echo "::error::HomeProxy node UI still exposes legacy protocol choices"
-            printf '%s\n' "$HOMEPROXY_NODE_JS" | grep -nE "o.value\('vmess'|o.value\('shadowtls'|o.value\('ssh'|o.value\('socks'|o.value\('hysteria'," || true
-            exit 1
-          fi
-          if printf '%s' "$HOMEPROXY_NODE_JS" | grep -Eq "aes-128-ctr|aes-192-ctr|aes-256-ctr|aes-128-cfb|aes-192-cfb|aes-256-cfb|chacha20'|chacha20-ietf'|rc4-md5"; then
-            echo "::error::HomeProxy node UI still exposes legacy Shadowsocks methods"
-            printf '%s\n' "$HOMEPROXY_NODE_JS" | grep -nE "aes-128-ctr|aes-192-ctr|aes-256-ctr|aes-128-cfb|aes-192-cfb|aes-256-cfb|chacha20'|chacha20-ietf'|rc4-md5" || true
-            exit 1
-          fi
-          HOMEPROXY_GENERATOR="$("$UNSQUASHFS" -cat "$ROOTFS" etc/homeproxy/scripts/generate_client.uc)"
-          if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -q 'modern_node_types'; then
-            echo "::error::HomeProxy generator is missing modern-node guard"
-            exit 1
-          fi
-          echo "OK: HomeProxy modern client mode is enforced"
 
           STATUS_PATHS="$(sed -n 's#.*squashfs-root/\(www/luci-static/resources/view/status.*/10_system\.js\)$#\1#p' "$ROOTFS_LIST")"
           if [ -z "$STATUS_PATHS" ]; then
@@ -796,6 +1243,8 @@ jobs:
 
       - name: Cleanup Old Releases
         if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           KEEP="${{ inputs.keep_releases }}"
           case "$KEEP" in
@@ -814,13 +1263,15 @@ jobs:
           for TAG in $RELEASES; do
             echo "Deleting release and tag: $TAG"
             gh release delete "$TAG" --yes 2>/dev/null || true
-            git push --delete origin "$TAG" 2>/dev/null || true
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" 2>/dev/null || true
           done
           echo "Cleanup done (kept last $KEEP releases)"
 
       - name: Release Firmware
         if: ${{ inputs.publish_release }}
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda  # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{env.RELEASE_TAG}}
           name: C8-660 Open (mt76) ${{env.RELEASE_DATE}} ${{env.RELEASE_TIME}}
@@ -830,7 +1281,7 @@ jobs:
             ./wrt/upload/immortalwrt-c8-660-sysupgrade.bin
             ./wrt/upload/immortalwrt-c8-660-initramfs.bin
             ./wrt/upload/mt7981-bl2.bin
-            ./wrt/upload/*.manifest
+            ./wrt/upload/immortalwrt-c8-660.manifest
             ./wrt/upload/sha256sums
           body: |
             ## C8-660 Open 固件
