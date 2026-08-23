@@ -60,8 +60,8 @@ ip-full, lsblk, openssh-keygen, adb（RM520N 原生 IPv6/ADB 状态支持）等
 |--|--|--|
 | **工作流** | `C8-660 Open (mt76)` | `C8-660 Closed (mt_wifi 7.6.7.3 + HNAT/WED)` |
 | **文件** | `.github/workflows/c8-660-open.yml` | `.github/workflows/c8-660-closed.yml` |
-| **源码** | immortalwrt/immortalwrt (`openwrt-25.12`) | chasey-dev/immortalwrt-mt798x-rebase (`25.12`) |
-| **内核** | Linux 6.x (mainline) | Linux 6.12 |
+| **源码** | immortalwrt/immortalwrt (`master`) | chasey-dev/immortalwrt-mt798x-rebase (`25.12`) |
+| **内核** | Linux 6.18 (master snapshot) | Linux 6.12 |
 | **WiFi 驱动** | mt76 (开源) | mt_wifi 7.6.7.3 (MediaTek 专有) |
 | **硬件加速** | mt76 WED | HNAT + WARP/WED |
 | **设备支持** | 通过 `patches/` 注入 | 通过闭源专用目标注入脚本安装 |
@@ -81,6 +81,8 @@ ip-full, lsblk, openssh-keygen, adb（RM520N 原生 IPv6/ADB 状态支持）等
 
 - 固定 `chasey-dev/immortalwrt-mt798x-rebase` 的 `25.12` 分支提交 `2d0e93b1253660ae15d195786cd7fa913d70d42a`
 - Linux 6.12、mt_wifi 7.6.7.3、`kmod-mediatek_hnat`、`kmod-warp` 和 WARP/WED vendor 链
+- WiFi 特性块整体镜像上游 `defconfig/mt7981-ax3000.config`：`MTK_OWE_SUPPORT` 负责提前引入 SAE 类型定义、`MTK_DOT11K_RRM_SUPPORT` 提供 RRM 类型，缺失会导致 mt_wifi 编译期 incomplete-type 错误
+- conninfra 需显式选择 `MTK_CONNINFRA_APSOC=y`（父开关默认关闭会让 defconfig 丢弃 MT7981 子项，modpost 报 `apconninfra_of_ids` 未定义）；校验器在 defconfig 后强制断言上述符号
 - `Scripts/InstallC8ClosedTarget.sh` 注入 C8-660 DTS、闭源镜像定义及 `eth1` HNAT 属性
 - 构建后强制校验 `.config`、manifest 和 rootfs，拒绝 mt76/mac80211 无线栈混入
 - HomeProxy 不作为 Closed 默认包；仅在私有配置显式选择时加入
@@ -90,13 +92,13 @@ ip-full, lsblk, openssh-keygen, adb（RM520N 原生 IPv6/ADB 状态支持）等
 | 项目 | 值 |
 |------|-----|
 | 源码 | immortalwrt/immortalwrt |
-| 分支 | openwrt-25.12 |
-| 内核 | 6.x (mainline) |
+| 分支 | master |
+| 内核 | 6.18 (master snapshot) |
 | WiFi 驱动 | mt76 (开源) |
 | 镜像格式 | UBI + FIT |
 | 触发方式 | 手动 (workflow_dispatch) |
 
-Open 构建默认使用 ImmortalWrt 稳定分支 `openwrt-25.12`。`workflow_dispatch` 仍保留 `wrt_branch` / `wrt_ref` 输入，便于手动对比 `master` snapshot 或固定到指定 commit；稳定发布不建议使用 `master` 作为默认底座。
+Open 构建默认使用 ImmortalWrt 开发分支 `master`（当前 mediatek/filogic 目标内核 6.18）。`workflow_dispatch` 仍保留 `wrt_branch` / `wrt_ref` 输入，可切回稳定分支 `openwrt-25.12`（内核 6.12）或固定到指定 commit；追新选 `master`，求稳选 `openwrt-25.12`。
 
 ## 已知风险与救砖
 
@@ -236,7 +238,7 @@ cat /sys/kernel/debug/hnat/hnat_entry | grep -c BIND
 ## 目录结构
 
 - `.github/workflows/` — CI 工作流
-   - `c8-660-open.yml` — 开源构建 (mt76 + mainline 6.x, ImmortalWrt openwrt-25.12 stable)
+   - `c8-660-open.yml` — 开源构建 (mt76 + mainline 6.18, ImmortalWrt master；可切回 openwrt-25.12)
    - `c8-660-closed.yml` — 闭源构建 (Linux 6.12 + mt_wifi 7.6.7.3 + HNAT/WARP-WED)
 - `Scripts/` — 编译自定义脚本（主题、插件、系统设置）
 - `Config/` — 设备 Kconfig + 通用包配置 + 变体配置
