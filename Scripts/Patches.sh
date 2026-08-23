@@ -169,8 +169,11 @@ MODEM_DST="$WRT_DIR/package/base-files/files"
 bash "$REPO_DIR/Scripts/InstallC8Overlay.sh" "$WRT_DIR"
 
 # 追加设备定义到 filogic.mk（幂等检查）
+# *-closed.mk 由 InstallC8ClosedTarget.sh 带标记安装，共享注入必须跳过，
+# 否则开源构建会先命中闭源定义并引入不存在的 vendor 包
 for MK in "$PATCHES_DIR"/*.mk; do
 	[ -f "$MK" ] || continue
+	case "$(basename "$MK")" in *-closed.mk) continue ;; esac
 	grep -q "nradio_wt9103" "$WRT_DIR/target/linux/mediatek/image/filogic.mk" 2>/dev/null || cat "$MK" >> "$WRT_DIR/target/linux/mediatek/image/filogic.mk"
 done
 REQUIRE_PATTERN "$WRT_DIR/target/linux/mediatek/image/filogic.mk" "define Device/nradio_wt9103" "C8-660 device definition"

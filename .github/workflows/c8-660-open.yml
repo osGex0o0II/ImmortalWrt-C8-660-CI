@@ -156,6 +156,20 @@ jobs:
             tail -5 ./wrt/target/linux/mediatek/image/filogic.mk
             OK=false
           fi
+          if [ "$(grep -c '^define Device/nradio_wt9103$' ./wrt/target/linux/mediatek/image/filogic.mk)" = "1" ]; then
+            echo "OK: exactly one C8-660 device definition"
+          else
+            echo "ERR: duplicate or missing nradio_wt9103 definition in filogic.mk"
+            OK=false
+          fi
+          MK_BLOCK="$(awk '/^define Device\/nradio_wt9103$/,/^endef$/' ./wrt/target/linux/mediatek/image/filogic.mk)"
+          if printf '%s' "$MK_BLOCK" | grep -q 'kmod-mt7915e' && ! printf '%s' "$MK_BLOCK" | grep -Eq 'kmod-mt_wifi|kmod-conninfra|kmod-mediatek_hnat|kmod-warp|hnat-detect|mtwifi-cfg-ucode'; then
+            echo "OK: device packages are the open mt76 set (no closed vendor leak)"
+          else
+            echo "ERR: closed vendor packages leaked into the open device definition"
+            printf '%s\n' "$MK_BLOCK"
+            OK=false
+          fi
           if grep -q 'gmac1: mac@1' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts && grep -q 'phy-handle = <&phy6>;' ./wrt/target/linux/mediatek/dts/mt7981b-nradio-c8-660.dts; then
             echo "OK: eth1 uses external 2.5G PHY"
           else
