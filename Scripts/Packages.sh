@@ -152,6 +152,46 @@ if grep -qs '^CONFIG_PACKAGE_luci-app-homeproxy=y$' "${CONFIG_FILES[@]}"; then
 	bash "$GITHUB_WORKSPACE/Scripts/PatchHomeProxyModern.sh" "luci-app-homeproxy"
 fi
 
+# WOL Ultra（VIKINGYFY/packages 为多包仓库：UPDATE_PACKAGE 会按仓库名
+# "packages" 在 feeds 里模糊匹配删除，误伤 feeds/packages，故用专用提取块）
+if grep -qs '^CONFIG_PACKAGE_luci-app-wolultra=y$' "${CONFIG_FILES[@]}"; then
+	WOLULTRA_LOCK="${PKG_LOCK_luci_app_wolultra_COMMIT:-}"
+	WOLULTRA_BRANCH="${PKG_LOCK_luci_app_wolultra_BRANCH:-main}"
+	echo " "
+	echo "Package: luci-app-wolultra (repo: VIKINGYFY/packages, branch: $WOLULTRA_BRANCH)"
+	rm -rf ../feeds/luci/applications/luci-app-wolultra luci-app-wolultra vikingyfy-packages-tmp
+	WOLULTRA_CLONED=""
+	for i in 1 2 3; do
+		if git clone --depth=1 --single-branch --branch "$WOLULTRA_BRANCH" \
+			"https://github.com/VIKINGYFY/packages.git" vikingyfy-packages-tmp; then
+			WOLULTRA_CLONED=1
+			break
+		fi
+		sleep 10
+	done
+	if [ -z "$WOLULTRA_CLONED" ]; then
+		echo "::error::Failed to clone VIKINGYFY/packages after 3 attempts"
+		exit 1
+	fi
+	if [ -n "$WOLULTRA_LOCK" ]; then
+		(
+			cd vikingyfy-packages-tmp
+			git fetch --unshallow 2>/dev/null || git fetch --all --tags
+			git checkout "$WOLULTRA_LOCK"
+		) || {
+			echo "::error::Failed to checkout luci-app-wolultra commit $WOLULTRA_LOCK"
+			exit 1
+		}
+	fi
+	if [ ! -f vikingyfy-packages-tmp/luci-app-wolultra/Makefile ]; then
+		echo "::error::luci-app-wolultra not found in VIKINGYFY/packages"
+		exit 1
+	fi
+	mv vikingyfy-packages-tmp/luci-app-wolultra ./luci-app-wolultra
+	rm -rf vikingyfy-packages-tmp
+	echo "Package ready: luci-app-wolultra"
+fi
+
 #引入私有扩展脚本
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
 	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"

@@ -37,7 +37,7 @@ NRadio C8-660 (MediaTek MT7981B) 专用 ImmortalWrt 固件编译 CI。
 | luci-app-c8modem | C8 蜂窝与短信工具（含短信接收/发送/转发） |
 | luci-app-homeproxy | 代理管理界面（Open 默认；Closed 仅在配置中显式选择时加入） |
 
-默认开源镜像保持 C8 蜂窝 CPE 与 HomeProxy/sing-box 代理基线，并预装 TTYD/Web 终端、UPnP、WOL 和 ZeroTier；不再预装 `luci-app-partexp` 和 LuCI 包管理页面。需要分区维护时，可通过 `Config/PRIVATE.txt` 或刷机后的命令行包管理器按需启用。
+默认开源镜像保持 C8 蜂窝 CPE 与 HomeProxy/sing-box 代理基线，并预装 TTYD/Web 终端、UPnP、WOL/WOL Ultra 和 ZeroTier；不再预装 `luci-app-partexp` 和 LuCI 包管理页面。需要分区维护时，可通过 `Config/PRIVATE.txt` 或刷机后的命令行包管理器按需启用。
 
 短信推送能力由 `luci-app-c8modem` 的 `modem/sms` 页面统一管理，内置 PushPlus、Telegram、Server 酱、WxPusher、企业微信和自定义 Webhook 通道；不再预装独立 `luci-app-wechatpush`，避免菜单、服务和配置互相冲突。
 

@@ -43,7 +43,14 @@ done
 
 LOG "Patching HomeProxy for C8 modern client mode"
 
-PYTHON_BIN="$(command -v python3 || command -v python || true)"
+PYTHON_BIN=""
+for CAND in python3 python; do
+	CAND_PATH="$(command -v "$CAND" || true)"
+	if [ -n "$CAND_PATH" ] && "$CAND_PATH" -c "" 2>/dev/null; then
+		PYTHON_BIN="$CAND_PATH"
+		break
+	fi
+done
 if [ -z "$PYTHON_BIN" ]; then
 	LOG "ERROR: python3/python is required to patch HomeProxy"
 	exit 1
