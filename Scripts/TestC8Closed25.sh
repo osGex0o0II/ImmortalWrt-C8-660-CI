@@ -197,6 +197,10 @@ CONFIG_PACKAGE_kmod-mt_wifi=y
 CONFIG_MTK_MT_WIFI_DRIVER_VERSION_7673=y
 CONFIG_MTK_MT_WIFI_MT7981_20260601=y
 CONFIG_PACKAGE_kmod-conninfra=y
+CONFIG_MTK_CONNINFRA_APSOC=y
+CONFIG_MTK_CONNINFRA_APSOC_MT7981=y
+CONFIG_CONNINFRA_EMI_SUPPORT=y
+CONFIG_CONNINFRA_AUTO_UP=y
 CONFIG_PACKAGE_kmod-mediatek_hnat=y
 CONFIG_PACKAGE_kmod-warp=y
 CONFIG_PACKAGE_hnat-detect=y
@@ -230,6 +234,7 @@ CONFIG_PACKAGE_kmod-mt7915e=y
 BAD_CONFIG
 
 	grep -Fvx 'CONFIG_MTK_WLAN_HOOK=y' "$fixture/good.config" > "$fixture/missing-hook.config"
+	grep -Fvx 'CONFIG_MTK_CONNINFRA_APSOC=y' "$fixture/good.config" > "$fixture/missing-conninfra-gate.config"
 
 	cat > "$fixture/good.manifest" <<'GOOD_MANIFEST'
 kmod-mt_wifi - 7.6.7.3
@@ -305,6 +310,11 @@ BAD_ROOTFS
 		fail 'validator must reject a closed config without the WLAN hook required by WHNAT'
 	else
 		pass 'validator rejects missing WLAN hook dependency'
+	fi
+	if bash "$validator" config "$fixture/missing-conninfra-gate.config" >/dev/null 2>&1; then
+		fail 'validator must reject a closed config without the conninfra APSOC gate required by modpost'
+	else
+		pass 'validator rejects missing conninfra APSOC gate dependency'
 	fi
 
 	if bash "$validator" manifest "$fixture/good.manifest"; then
