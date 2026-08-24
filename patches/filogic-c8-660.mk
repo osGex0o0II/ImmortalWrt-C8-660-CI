@@ -18,10 +18,9 @@ define Device/nradio_wt9103
 	ttyd luci-app-ttyd \
 	miniupnpd luci-app-upnp \
 	zerotier luci-app-zerotier \
-	socat \
 	etherwake luci-app-wol \
 	luci-proto-3g \
-	tcpdump ethtool \
+	ethtool \
 	irqbalance \
 	adb nano unzip wget-ssl
   UBINIZE_OPTS := -E 5

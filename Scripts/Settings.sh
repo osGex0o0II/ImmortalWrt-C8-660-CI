@@ -3,13 +3,18 @@
 # Copyright (C) 2026 VIKINGYFY
 set -euo pipefail
 
-# 移除 luci-app-attendedsysupgrade 并修改默认主题
+# 移除默认集合中的在线升级/包管理页面并修改默认主题
 ATTENDED_MAKEFILE="./feeds/luci/collections/luci/Makefile"
 if [ -f "$ATTENDED_MAKEFILE" ]; then
-	sed -i "/attendedsysupgrade/d" "$ATTENDED_MAKEFILE"
+	sed -i -E "s/[[:space:]]*\+luci-app-(attendedsysupgrade|package-manager)//g" "$ATTENDED_MAKEFILE"
+	sed -i -E "/attendedsysupgrade|package-manager/d" "$ATTENDED_MAKEFILE"
+	if grep -Eq "luci-app-(attendedsysupgrade|package-manager)" "$ATTENDED_MAKEFILE"; then
+		echo "ERROR: failed to remove LuCI attendedsysupgrade/package-manager defaults from $ATTENDED_MAKEFILE" >&2
+		exit 1
+	fi
 	sed -i "s|luci-theme-bootstrap|luci-theme-$WRT_THEME|g" "$ATTENDED_MAKEFILE"
 else
-	echo "WARNING: $ATTENDED_MAKEFILE not found — attendedsysupgrade/theme not modified" >&2
+	echo "WARNING: $ATTENDED_MAKEFILE not found — LuCI collection/theme not modified" >&2
 fi
 
 # 修改 immortalwrt.lan 关联 IP

@@ -1,0 +1,5 @@
+ Scripts/InstallC8Overlay.sh                        | 110 ++-
+ patches/files/etc/init.d/c8-sms-forward            |   5 +
+ patches/files/usr/bin/c8-sms-forward               | 804 ++++++++++++++++++---
+ .../usr/share/rpcd/acl.d/luci-app-c8modem.json     |   9 +-
+ 4 files changed, 823 insertions(+), 105 deletions(-)

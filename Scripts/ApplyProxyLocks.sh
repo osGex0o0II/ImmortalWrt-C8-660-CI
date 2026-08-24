@@ -17,8 +17,41 @@ if [ ! -f "$LOCK_FILE" ]; then
 	exit 1
 fi
 
-# shellcheck disable=SC1090
-. "$LOCK_FILE"
+validate_lock() {
+	local key="$1"
+	local value="$2"
+	case "$key" in
+		SING_BOX_TAG)
+			[[ "$value" =~ ^v[0-9]+(\.[0-9]+){1,3}$ ]]
+			;;
+		SING_BOX_VERSION)
+			[[ "$value" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]
+			;;
+		SING_BOX_HASH)
+			[[ "$value" =~ ^[0-9a-f]{64}$ ]]
+			;;
+		PKG_LOCK_homeproxy_BRANCH)
+			[[ "$value" =~ ^[A-Za-z0-9._/-]+$ ]]
+			;;
+		PKG_LOCK_homeproxy_COMMIT)
+			[[ "$value" =~ ^[0-9a-f]{40}$ ]]
+			;;
+		*)
+			return 1
+			;;
+	esac
+}
+
+while IFS='=' read -r KEY VALUE; do
+	[ -n "$KEY" ] || continue
+	case "$KEY" in \#*) continue ;; esac
+	VALUE="${VALUE%$'\r'}"
+	if ! validate_lock "$KEY" "$VALUE"; then
+		LOG "ERROR: invalid proxy lock entry: $KEY"
+		exit 1
+	fi
+	printf -v "$KEY" '%s' "$VALUE"
+done < "$LOCK_FILE"
 
 if [ -z "$SING_BOX_MAKEFILE" ] || [ ! -f "$SING_BOX_MAKEFILE" ]; then
 	LOG "ERROR: sing-box Makefile not found: $SING_BOX_MAKEFILE"

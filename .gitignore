@@ -8,3 +8,7 @@ Scripts/PRIVATE.sh
 *.ipk
 artifacts.json
 check*.py
+artifacts/
+artifacts-test/
+backups/
+*_tmp_run.json
