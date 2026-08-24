@@ -1,6 +1,0 @@
-MISSING  patches/files/usr/share/rpcd/ucode/c8.sms_forward.uc
-38f7874e95c6bdbf4e6ec6fb5f59a3f19f2a0515a95077f75a8c6d6cc5e4bd82  patches/files/usr/share/rpcd/acl.d/luci-app-c8modem.json
-865207679ba7c809cfe25920a1b8a64019faf35269e2f3b07ee5c9d1cdc50283  patches/files/etc/init.d/c8-sms-forward
-a5d6af8a77c66ffe24c002c6bee4b55802f5bfffc6f60c4607ad9fb238d0e2c0  Scripts/InstallC8Overlay.sh
-9da9ebe2084b580ca53572ce9c732a091263a0888058500eec185318adc721f3  patches/files/usr/bin/c8-sms-forward
-d491a0b76a8e4d9cc72de9ceff89e9e5addd16fd1fe18abd3bf6162372deb7a9  patches/files/www/luci-static/resources/view/c8modem/sms-forward.js

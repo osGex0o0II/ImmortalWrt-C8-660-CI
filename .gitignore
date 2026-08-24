@@ -12,3 +12,6 @@ artifacts/
 artifacts-test/
 backups/
 *_tmp_run.json
+
+.omo/
+handover.md

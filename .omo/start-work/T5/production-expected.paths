@@ -1,5 +1,0 @@
-patches/files/etc/init.d/c8-sms-forward
-patches/files/usr/bin/c8-sms-forward
-patches/files/usr/share/rpcd/acl.d/luci-app-c8modem.json
-patches/files/usr/share/rpcd/ucode/c8.sms_forward.uc
-Scripts/InstallC8Overlay.sh
