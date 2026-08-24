@@ -943,11 +943,15 @@ jobs:
               echo "::error::HomeProxy server menu entry is still exposed"
               exit 1
             fi
-            HOMEPROXY_SERVER_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/view/homeproxy/server.js)"
-            if ! printf '%s' "$HOMEPROXY_SERVER_JS" | grep -Fq "o.readonly = true;" || ! printf '%s' "$HOMEPROXY_SERVER_JS" | grep -Fq "o.default = o.disabled;"; then
-              echo "::error::HomeProxy server page is not forced disabled/read-only"
-              exit 1
-            fi
+          HOMEPROXY_SERVER_JS="$("$UNSQUASHFS" -cat "$ROOTFS" www/luci-static/resources/view/homeproxy/server.js)"
+          if ! printf '%s' "$HOMEPROXY_SERVER_JS" | grep -Fq "o.readonly = true;" || ! printf '%s' "$HOMEPROXY_SERVER_JS" | grep -Fq "o.default = o.disabled;"; then
+            echo "::error::HomeProxy server page is not forced disabled/read-only"
+            printf 'server.js bytes: '; printf '%s' "$HOMEPROXY_SERVER_JS" | wc -c
+            printf 'server.js sha256: '; printf '%s' "$HOMEPROXY_SERVER_JS" | (sha256sum 2>/dev/null || shasum -a 256) | cut -d' ' -f1
+            printf '%s' "$HOMEPROXY_SERVER_JS" | grep -nE "Flag, 'enabled'|readonly|o\.default = o\.(enabled|disabled)" | head -20 || true
+            "$UNSQUASHFS" -ll "$ROOTFS" | grep -E 'homeproxy/(server|node)\.js' || true
+            exit 1
+          fi
             HOMEPROXY_GENERATOR="$("$UNSQUASHFS" -cat "$ROOTFS" etc/homeproxy/scripts/generate_client.uc)"
             if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -q 'modern_node_types'; then
               echo "::error::HomeProxy generator is missing modern-node guard"
