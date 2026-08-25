@@ -43,6 +43,14 @@ done
 
 LOG "Patching HomeProxy for C8 modern client mode"
 
+# 关闭本包 JS 压缩：jsmin 会剥离空格（o.readonly = true -> o.readonly=true），
+# 破坏 CI 对补丁标记的固定串校验；必须在 luci.mk 处理前覆盖 ?= 默认值
+sed -i '1i LUCI_MINIFY_JS:=0' "$PKG_DIR/Makefile"
+grep -qx 'LUCI_MINIFY_JS:=0' "$PKG_DIR/Makefile" || {
+	LOG "ERROR: failed to pin LUCI_MINIFY_JS=0"
+	exit 1
+}
+
 PYTHON_BIN=""
 for CAND in python3 python; do
 	CAND_PATH="$(command -v "$CAND" || true)"
@@ -668,5 +676,9 @@ else
 		exit 1
 	fi
 fi
+
+# 写盘后自检：CI 校验器依赖这些固定串，缺一即在此失败（避免烧完整构建才发现）
+grep -Fq 'o.readonly = true;' "$SERVER_JS" || { LOG "ERROR: server.js lost readonly marker"; exit 1; }
+grep -Fq 'o.default = o.disabled;' "$SERVER_JS" || { LOG "ERROR: server.js lost disabled default marker"; exit 1; }
 
 LOG "HomeProxy modern client mode patched"
