@@ -71,7 +71,20 @@ if [ "$CURRENT_SING_BOX_VERSION" = "$SING_BOX_VERSION" ] && [ "$CURRENT_SING_BOX
 	exit 0
 fi
 
-python3 - "$SING_BOX_MAKEFILE" "$SING_BOX_VERSION" "$SING_BOX_HASH" <<'PY'
+PYTHON_BIN=""
+for CAND in python3 python; do
+	CAND_PATH="$(command -v "$CAND" || true)"
+	if [ -n "$CAND_PATH" ] && "$CAND_PATH" -c "" 2>/dev/null; then
+		PYTHON_BIN="$CAND_PATH"
+		break
+	fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+	LOG "ERROR: python3/python is required to apply sing-box lock"
+	exit 1
+fi
+
+"$PYTHON_BIN" - "$SING_BOX_MAKEFILE" "$SING_BOX_VERSION" "$SING_BOX_HASH" <<'PY'
 from pathlib import Path
 import re
 import sys
