@@ -218,6 +218,9 @@
 			full-duplex;
 			pause;
 		};
+
+		nvmem-cells = <&macaddr_bdinfo_9 0>;
+		nvmem-cell-names = "mac-address";
 	};
 
 	gmac1: mac@1 {

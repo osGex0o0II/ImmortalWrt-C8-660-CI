@@ -18,7 +18,7 @@ define Device/nradio_wt9103
 	ttyd luci-app-ttyd \
 	miniupnpd luci-app-upnp \
 	zerotier luci-app-zerotier \
-	etherwake luci-app-wol \
+	etherwake \
 	luci-proto-3g \
 	ethtool \
 	irqbalance \

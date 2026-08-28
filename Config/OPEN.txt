@@ -19,6 +19,7 @@ CONFIG_PACKAGE_ucode-mod-digest=y
 
 # --- 开源构建专用: WOL Ultra（增强型网络唤醒：计划任务/批量唤醒，依赖 etherwake） ---
 CONFIG_PACKAGE_luci-app-wolultra=y
+CONFIG_PACKAGE_luci-i18n-wolultra-zh-cn=y
 
 # 默认开源镜像保留 C8 蜂窝 CPE、代理基线、Web 终端、UPnP、WOL 和 ZeroTier。
 # partexp 等维护能力可通过 Config/PRIVATE.txt 按需启用。
