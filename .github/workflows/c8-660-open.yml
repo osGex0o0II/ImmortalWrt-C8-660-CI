@@ -217,22 +217,21 @@ jobs:
           node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-settings.js"
           node --check "$GITHUB_WORKSPACE/patches/files/www/luci-static/resources/view/c8modem/sms-forward.js"
 
-      - name: Check Caches
+      - name: Restore Build Cache
         id: check-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
-          key: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_HASH}}
-          restore-keys: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}
+          key: wrt-${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_TARGET}}-${{env.WRT_HASH}}
+          restore-keys: |
+            wrt-${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_TARGET}}-
+            wrt-${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-
+            wrt-${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-
           path: |
             ./wrt/.ccache
-            ./wrt/feeds
             ./wrt/staging_dir/host*
             ./wrt/staging_dir/tool*
-            ./wrt/dl
 
-      - name: Update Caches
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare Toolchain Cache
         run: |
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           if [ -d "./wrt/staging_dir" ]; then
@@ -242,18 +241,9 @@ jobs:
             find "staging_dir" -type d -name "stamp" -not -path "*target*" 2>/dev/null | while read -r DIR; do
               find "$DIR" -type f -exec touch {} + 2>/dev/null || true
             done
-            echo "toolchain clean done!"
+            echo "toolchain cache prepared"
           else
-            echo "caches missed!"
-          fi
-
-          if ${{steps.check-cache.outputs.cache-hit != 'true'}}; then
-            CACHE_LIST=$(gh cache list --key "$WRT_CONFIG-$WRT_INFO" --limit 100 | cut -f 1)
-            for CACHE_KEY in $CACHE_LIST; do
-              gh cache delete $CACHE_KEY
-            done
-
-            echo "caches cleanup done!"
+            echo "build cache missed"
           fi
 
       - name: Update Feeds
@@ -1337,6 +1327,32 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      - name: Check Source Drift
+        if: ${{ success() && steps.check-cache.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          REMOTE_HEAD="$(git ls-remote "$WRT_REPO" "refs/heads/$WRT_BRANCH" 2>/dev/null | head -1 | cut -f1 || true)"
+          if [ -z "$REMOTE_HEAD" ]; then
+            echo "::warning::Could not resolve remote $WRT_BRANCH HEAD; saving build cache anyway"
+            echo "SOURCE_DRIFTED=false" >> "$GITHUB_ENV"
+          elif [ "${REMOTE_HEAD:0:${#WRT_HASH}}" = "$WRT_HASH" ]; then
+            echo "SOURCE_DRIFTED=false" >> "$GITHUB_ENV"
+            echo "Remote $WRT_BRANCH HEAD matches local $WRT_HASH"
+          else
+            echo "SOURCE_DRIFTED=true" >> "$GITHUB_ENV"
+            echo "::warning::Remote $WRT_BRANCH HEAD moved (${REMOTE_HEAD:0:12}); skipping build cache save"
+          fi
+
+      - name: Save Build Cache
+        if: ${{ success() && steps.check-cache.outputs.cache-hit != 'true' && env.WRT_TEST != 'true' && env.SOURCE_DRIFTED != 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          key: wrt-${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_TARGET}}-${{env.WRT_HASH}}
+          path: |
+            ./wrt/.ccache
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+
       - name: Clean Build Workspace
         if: always()
         run: |
@@ -1344,3 +1360,27 @@ jobs:
           rm -rf build_dir tmp logs bin 2>/dev/null || true
           rm -rf staging_dir/target* 2>/dev/null || true
           rm -f .config.old 2>/dev/null || true
+
+  cache-rollover:
+    name: Cache Rollover
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Cleanup Old Cache Generations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PREFIX="wrt-${{ env.WRT_CONFIG }}-${{ env.WRT_INFO }}-"
+          KEEP=3
+          FILTER='sort_by(.createdAt) | .[0:-'"$KEEP"'] | .[].id'
+          while read -r CACHE_ID; do
+            [ -n "$CACHE_ID" ] || continue
+            echo "Deleting old cache generation: $CACHE_ID"
+            gh cache delete "$CACHE_ID" 2>/dev/null || true
+          done < <(gh cache list --key "$PREFIX" --limit 100 --json id,createdAt --jq "$FILTER" 2>/dev/null || true)
+          echo "Cache rollover done (prefix: $PREFIX, keep newest $KEEP)"

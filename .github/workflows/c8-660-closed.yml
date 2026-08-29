@@ -163,16 +163,32 @@ jobs:
       - name: Restore Build Cache
         if: ${{ inputs.enable_cache }}
         id: check-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
-          key: ${{env.WRT_CONFIG}}-${{env.WRT_HASH}}
-          restore-keys: ${{env.WRT_CONFIG}}-
+          key: wrt-${{env.WRT_CONFIG}}-${{env.WRT_BRANCH}}-${{env.WRT_HASH}}
+          restore-keys: |
+            wrt-${{env.WRT_CONFIG}}-${{env.WRT_BRANCH}}-
+            wrt-${{env.WRT_CONFIG}}-
           path: |
             ./wrt/.ccache
-            ./wrt/feeds
             ./wrt/staging_dir/host*
             ./wrt/staging_dir/tool*
-            ./wrt/dl
+
+      - name: Prepare Toolchain Cache
+        if: ${{ inputs.enable_cache }}
+        run: |
+          set -euo pipefail
+          if [ -d "./wrt/staging_dir" ]; then
+            cd ./wrt/
+            rm -rf build_dir staging_dir/target* tmp 2>/dev/null || true
+            mkdir -p tmp && echo "1" > tmp/.build
+            find "staging_dir" -type d -name "stamp" -not -path "*target*" 2>/dev/null | while read -r DIR; do
+              find "$DIR" -type f -exec touch {} + 2>/dev/null || true
+            done || true
+            echo "toolchain cache prepared"
+          else
+            echo "build cache missed"
+          fi
 
       - name: Update Feeds
         run: |
@@ -392,8 +408,64 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      - name: Check Source Drift
+        if: ${{ inputs.enable_cache && success() && steps.check-cache.outputs.cache-hit != 'true' }}
+        run: |
+          set -euo pipefail
+          if printf '%s' "$WRT_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            # Pinned commit build (default): the source is fixed by design, no drift applies.
+            echo "SOURCE_DRIFTED=false" >> "$GITHUB_ENV"
+            echo "Pinned commit build; source drift check skipped"
+          else
+            REMOTE_HEAD="$(git ls-remote "$WRT_REPO" "refs/heads/$WRT_REF" "refs/tags/$WRT_REF" 2>/dev/null | head -1 | cut -f1 || true)"
+            if [ -z "$REMOTE_HEAD" ]; then
+              echo "::warning::Could not resolve remote ref $WRT_REF; saving build cache anyway"
+              echo "SOURCE_DRIFTED=false" >> "$GITHUB_ENV"
+            elif [ "$REMOTE_HEAD" = "$WRT_HASH_FULL" ]; then
+              echo "SOURCE_DRIFTED=false" >> "$GITHUB_ENV"
+              echo "Remote $WRT_REF matches local $WRT_HASH"
+            else
+              echo "SOURCE_DRIFTED=true" >> "$GITHUB_ENV"
+              echo "::warning::Remote $WRT_REF moved (${REMOTE_HEAD:0:12}); skipping build cache save"
+            fi
+          fi
+
+      - name: Save Build Cache
+        if: ${{ inputs.enable_cache && success() && steps.check-cache.outputs.cache-hit != 'true' && env.WRT_TEST != 'true' && env.SOURCE_DRIFTED != 'true' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          key: wrt-${{env.WRT_CONFIG}}-${{env.WRT_BRANCH}}-${{env.WRT_HASH}}
+          path: |
+            ./wrt/.ccache
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+
       - name: Clean Build Workspace
         if: always()
         run: |
           rm -rf ./wrt/build_dir ./wrt/tmp ./wrt/logs ./wrt/bin 2>/dev/null || true
           rm -rf ./wrt/staging_dir/target* 2>/dev/null || true
+
+  cache-rollover:
+    name: Cache Rollover
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Cleanup Old Cache Generations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PREFIX="wrt-${{ env.WRT_CONFIG }}-"
+          KEEP=3
+          FILTER='sort_by(.createdAt) | .[0:-'"$KEEP"'] | .[].id'
+          while read -r CACHE_ID; do
+            [ -n "$CACHE_ID" ] || continue
+            echo "Deleting old cache generation: $CACHE_ID"
+            gh cache delete "$CACHE_ID" 2>/dev/null || true
+          done < <(gh cache list --key "$PREFIX" --limit 100 --json id,createdAt --jq "$FILTER" 2>/dev/null || true)
+          echo "Cache rollover done (prefix: $PREFIX, keep newest $KEEP)"

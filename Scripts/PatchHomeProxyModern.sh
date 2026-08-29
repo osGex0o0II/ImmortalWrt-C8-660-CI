@@ -175,11 +175,11 @@ replace_required(
 \t}
 \to.value('shadowsocks', _('Shadowsocks'));
 \to.value('shadowtls', _('ShadowTLS'));
-\to.value('socks', _('Socks'));
+\to.value('socks', _('SOCKS'));
 \to.value('ssh', _('SSH'));
 \to.value('trojan', _('Trojan'));
 \tif (features.with_quic)
-\t\to.value('tuic', _('Tuic'));
+\t\to.value('tuic', _('TUIC'));
 \tif (features.with_wireguard && features.with_gvisor)
 \t\to.value('wireguard', _('WireGuard'));
 \to.value('vless', _('VLESS'));
@@ -193,7 +193,7 @@ replace_required(
 \to.value('shadowsocks', _('Shadowsocks'));
 \to.value('trojan', _('Trojan'));
 \tif (features.with_quic)
-\t\to.value('tuic', _('Tuic'));
+\t\to.value('tuic', _('TUIC'));
 \tif (features.with_wireguard && features.with_gvisor)
 \t\to.value('wireguard', _('WireGuard'));
 \to.value('vless', _('VLESS'));
@@ -289,7 +289,7 @@ replace_required(
 regex_required(
     server_js,
     r"\t\to = s\.option\(form\.ListValue, 'type', _\('Type'\)\);[\s\S]*?\n\t\to\.rmempty = false;",
-    "\t\to = s.option(form.ListValue, 'type', _('Type'));\n\t\to.value('anytls', _('AnyTLS'));\n\t\to.value('hysteria2', _('Hysteria2'));\n\t\to.value('shadowsocks', _('Shadowsocks'));\n\t\to.value('trojan', _('Trojan'));\n\t\tif (features.with_quic)\n\t\t\to.value('tuic', _('Tuic'));\n\t\to.value('vless', _('VLESS'));\n\t\to.rmempty = false;"
+    "\t\to = s.option(form.ListValue, 'type', _('Type'));\n\t\to.value('anytls', _('AnyTLS'));\n\t\to.value('hysteria2', _('Hysteria2'));\n\t\to.value('shadowsocks', _('Shadowsocks'));\n\t\to.value('trojan', _('Trojan'));\n\t\tif (features.with_quic)\n\t\t\to.value('tuic', _('TUIC'));\n\t\to.value('vless', _('VLESS'));\n\t\to.rmempty = false;"
 )
 
 replace_required(

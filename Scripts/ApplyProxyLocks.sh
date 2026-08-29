@@ -22,10 +22,10 @@ validate_lock() {
 	local value="$2"
 	case "$key" in
 		SING_BOX_TAG)
-			[[ "$value" =~ ^v[0-9]+(\.[0-9]+){1,3}$ ]]
+			[[ "$value" =~ ^v[0-9]+(\.[0-9]+){1,3}(-[A-Za-z0-9\.]+)?$ ]]
 			;;
 		SING_BOX_VERSION)
-			[[ "$value" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]
+			[[ "$value" =~ ^[0-9]+(\.[0-9]+){1,3}(_[A-Za-z0-9\.]+)?$ ]]
 			;;
 		SING_BOX_HASH)
 			[[ "$value" =~ ^[0-9a-f]{64}$ ]]

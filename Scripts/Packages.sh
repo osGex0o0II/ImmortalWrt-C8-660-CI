@@ -148,7 +148,41 @@ if grep -qs '^CONFIG_PACKAGE_luci-app-partexp=y$' "${CONFIG_FILES[@]}"; then
 	UPDATE_PACKAGE "luci-app-partexp" "sirpdboy/luci-app-partexp" "main" "" "partexp" "luci-app-partexp" "partexp"
 fi
 if grep -qs '^CONFIG_PACKAGE_luci-app-homeproxy=y$' "${CONFIG_FILES[@]}"; then
-	UPDATE_PACKAGE "luci-app-homeproxy" "immortalwrt/homeproxy" "master" "name" "homeproxy" "" "homeproxy"
+	HOMEPROXY_LOCK="${PKG_LOCK_homeproxy_COMMIT:-}"
+	HOMEPROXY_BRANCH="${PKG_LOCK_homeproxy_BRANCH:-main}"
+	echo " "
+	echo "Package: luci-app-homeproxy (repo: VIKINGYFY/packages, branch: $HOMEPROXY_BRANCH)"
+	rm -rf ../feeds/luci/applications/luci-app-homeproxy luci-app-homeproxy vikingyfy-packages-tmp-homeproxy
+	HOMEPROXY_CLONED=""
+	for i in 1 2 3; do
+		if git clone --depth=1 --single-branch --branch "$HOMEPROXY_BRANCH" \
+			"https://github.com/VIKINGYFY/packages.git" vikingyfy-packages-tmp-homeproxy; then
+			HOMEPROXY_CLONED=1
+			break
+		fi
+		sleep 10
+	done
+	if [ -z "$HOMEPROXY_CLONED" ]; then
+		echo "::error::Failed to clone VIKINGYFY/packages after 3 attempts"
+		exit 1
+	fi
+	if [ -n "$HOMEPROXY_LOCK" ]; then
+		(
+			cd vikingyfy-packages-tmp-homeproxy
+			git fetch --unshallow 2>/dev/null || git fetch --all --tags
+			git checkout "$HOMEPROXY_LOCK"
+		) || {
+			echo "::error::Failed to checkout luci-app-homeproxy commit $HOMEPROXY_LOCK"
+			exit 1
+		}
+	fi
+	if [ ! -f vikingyfy-packages-tmp-homeproxy/luci-app-homeproxy/Makefile ]; then
+		echo "::error::luci-app-homeproxy not found in VIKINGYFY/packages"
+		exit 1
+	fi
+	mv vikingyfy-packages-tmp-homeproxy/luci-app-homeproxy ./luci-app-homeproxy
+	rm -rf vikingyfy-packages-tmp-homeproxy
+	echo "Package ready: luci-app-homeproxy"
 	bash "$GITHUB_WORKSPACE/Scripts/PatchHomeProxyModern.sh" "luci-app-homeproxy"
 fi
 
