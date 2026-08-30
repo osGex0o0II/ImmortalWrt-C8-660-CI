@@ -36,6 +36,12 @@ validate_lock() {
 		PKG_LOCK_homeproxy_COMMIT)
 			[[ "$value" =~ ^[0-9a-f]{40}$ ]]
 			;;
+		PKG_LOCK_luci_app_wolultra_BRANCH)
+			[[ "$value" =~ ^[A-Za-z0-9._/-]+$ ]]
+			;;
+		PKG_LOCK_luci_app_wolultra_COMMIT)
+			[[ "$value" =~ ^[0-9a-f]{40}$ ]]
+			;;
 		*)
 			return 1
 			;;

@@ -12,15 +12,16 @@ GIT_REMOTE() {
 	git -c http.proxy= -c https.proxy= "$@"
 }
 
-# sing-box: 1.14 已移除 go-json-experiment/json 依赖，Go 1.27 下可编译；
-# 天花板放宽到 14，允许 rc/beta（如 v1.14.0-rc.1）
-SING_BOX_MAX_MINOR=14
+# sing-box 天花板：1.13+ 引入 go-json-experiment/json（jsonv2 实验），
+# 其快照在 buildroot Go 下编译报 undefined: json.SkipFunc/DiscardFunc；
+# 在上游依赖修复前锁定 1.12 维护线
+SING_BOX_MAX_MINOR=12
 
 LATEST_SING_BOX_TAG="$(
 	GIT_REMOTE ls-remote --tags --refs https://github.com/SagerNet/sing-box.git \
 		| awk '{print $2}' \
 		| sed 's#refs/tags/##' \
-		| grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9\.]+)?$' \
+		| grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
 		| awk -F. -v max="$SING_BOX_MAX_MINOR" '$2 <= max' \
 		| sort -V \
 		| tail -1
@@ -68,6 +69,8 @@ SING_BOX_VERSION=$LATEST_SING_BOX_VERSION
 SING_BOX_HASH=$LATEST_SING_BOX_HASH
 PKG_LOCK_homeproxy_BRANCH=main
 PKG_LOCK_homeproxy_COMMIT=$LATEST_HOMEPROXY_COMMIT
+PKG_LOCK_luci_app_wolultra_BRANCH=main
+PKG_LOCK_luci_app_wolultra_COMMIT=$LATEST_HOMEPROXY_COMMIT
 EOF
 
 LOG "Updated proxy locks"

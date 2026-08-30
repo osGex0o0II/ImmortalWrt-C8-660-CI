@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update:
@@ -32,6 +33,8 @@ jobs:
           echo "Pinned SHA256: $(cat "$PIN_FILE")"
 
       - name: Commit changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -40,8 +43,20 @@ jobs:
             exit 0
           fi
 
+          BRANCH="codex/update-init-build-sha"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
           git add .github/init_build_environment.sha256
           git commit -m "ci: update init build environment sha"
-          git push origin HEAD:main
+          git push --force-with-lease origin "$BRANCH"
+
+          if gh pr view "$BRANCH" --json url --jq .url >/tmp/init-sha-pr-url 2>/dev/null; then
+            echo "Updated existing init-build-sha PR: $(cat /tmp/init-sha-pr-url)"
+          else
+            gh pr create \
+              --base "${{ github.ref_name }}" \
+              --head "$BRANCH" \
+              --title "ci: update init build environment sha" \
+              --body "Updates init_build_environment.sh SHA256 pin for manual review before it becomes the build baseline."
+          fi
