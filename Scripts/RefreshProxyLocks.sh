@@ -12,10 +12,11 @@ GIT_REMOTE() {
 	git -c http.proxy= -c https.proxy= "$@"
 }
 
-# sing-box 天花板：1.13+ 引入 go-json-experiment/json（jsonv2 实验），
-# 其快照在 buildroot Go 下编译报 undefined: json.SkipFunc/DiscardFunc；
-# 在上游依赖修复前锁定 1.12 维护线
-SING_BOX_MAX_MINOR=12
+# sing-box 1.14 is required by the current VIKINGYFY HomeProxy package
+# (LUCI_EXTRA_DEPENDS sing-box >=1.14.0_alpha1). 1.13 stays excluded because
+# its jsonv2 snapshot fails under buildroot Go; prereleases are never
+# auto-pinned, so the refresh keeps the newest 1.14.x stable tag.
+SING_BOX_MAX_MINOR=14
 
 LATEST_SING_BOX_TAG="$(
 	GIT_REMOTE ls-remote --tags --refs https://github.com/SagerNet/sing-box.git \

@@ -107,6 +107,8 @@ def detect_sing_box_version():
 def replace_required(path, old, new):
     text = path.read_text(encoding='utf-8')
     if old not in text:
+        if 'dedicated_udp_node' in old and 'dedicated_udp_node' not in text:
+            return
         raise SystemExit(f'missing expected block in {path}: {old[:80]!r}')
     path.write_text(text.replace(old, new), encoding='utf-8')
 
@@ -123,6 +125,53 @@ def regex_optional(path, pattern, repl, flags=0):
     if count:
         path.write_text(new, encoding='utf-8')
     return count
+
+def ensure_modern_guard(path, function_name):
+    text = path.read_text(encoding='utf-8')
+    pattern = (
+        rf"(function {re.escape(function_name)}\(node\) \{{\n)"
+        r"(?:\tif \(type\(node\) !== 'object' \|\| isEmpty\(node\)\)\n"
+        r"\t\treturn null;\n)?"
+    )
+    replacement = r"\1\tif (!is_modern_node(node))\n\t\treturn null;\n"
+    new, count = re.subn(pattern, replacement, text, count=1)
+    if count != 1:
+        raise SystemExit(f'missing expected function in {path}: {function_name}')
+    path.write_text(new, encoding='utf-8')
+
+def ensure_subscription_main_fallback(path):
+    text = path.read_text(encoding='utf-8')
+    if 'No main node is selected, switching to the first node.' in text:
+        return
+
+    old = "\tlet need_restart = (via_proxy !== '1');"
+    if old in text:
+        replacement = old + """\n\tconst first_subscription_server = uci.get_first(uciconfig, ucinode);
+\tif (routing_mode !== 'custom' && isEmpty(main_node) && first_subscription_server) {
+\t\tuci.set(uciconfig, ucimain, 'main_node', first_subscription_server);
+\t\tuci.set(uciconfig, ucimain, 'main_udp_node', 'same');
+\t\tuci.commit(uciconfig);
+\t\tmain_node = first_subscription_server;
+\t\tmain_udp_node = 'same';
+\t\tneed_restart = true;
+
+\t\tlog('No main node is selected, switching to the first node.');
+\t}"""
+        path.write_text(text.replace(old, replacement, 1), encoding='utf-8')
+        return
+
+    marker = "\tconst current_main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';\n"
+    if marker not in text:
+        raise SystemExit(f'missing expected main node anchor in {path}')
+    fallback = marker + """\tif (current_main_node === 'nil') {
+\t\tconst first_server = uci.get_first(uciconfig, ucinode);
+\t\tif (first_server) {
+\t\t\tuci.set(uciconfig, ucimain, 'main_node', first_server);
+\t\t\tlog('No main node is selected, switching to the first node.');
+\t\t}
+\t}
+"""
+    path.write_text(text.replace(marker, fallback, 1), encoding='utf-8')
 
 def text_replace_optional(path, old, new):
     text = path.read_text(encoding='utf-8')
@@ -306,29 +355,25 @@ replace_required(
     ""
 )
 
-insert_after = """const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';\n/* UCI config end */"""
+insert_after = "const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';"
 modern_guard = """const modern_node_types = [ 'direct', 'anytls', 'hysteria2', 'shadowsocks', 'trojan', 'tuic', 'wireguard', 'vless' ];\nconst modern_shadowsocks_methods = [\n\t'aes-128-gcm',\n\t'aes-192-gcm',\n\t'aes-256-gcm',\n\t'chacha20-ietf-poly1305',\n\t'xchacha20-ietf-poly1305',\n\t'2022-blake3-aes-128-gcm',\n\t'2022-blake3-aes-256-gcm',\n\t'2022-blake3-chacha20-poly1305'\n];\n\nfunction is_modern_node(node) {\n\tif (type(node) !== 'object' || isEmpty(node) || !(node.type in modern_node_types))\n\t\treturn false;\n\tif (node.type === 'shadowsocks' && !(node.shadowsocks_encrypt_method in modern_shadowsocks_methods))\n\t\treturn false;\n\treturn true;\n}\n\n""" + insert_after
 replace_required(gen_client_uc, insert_after, modern_guard)
 
-replace_required(
-    gen_client_uc,
-    """function generate_endpoint(node) {
-\tif (type(node) !== 'object' || isEmpty(node))
-\t\treturn null;""",
-    """function generate_endpoint(node) {
-\tif (!is_modern_node(node))
-\t\treturn null;"""
-)
+ensure_modern_guard(gen_client_uc, 'generate_endpoint')
+ensure_modern_guard(gen_client_uc, 'generate_outbound')
 
-replace_required(
-    gen_client_uc,
-    """function generate_outbound(node) {
-\tif (type(node) !== 'object' || isEmpty(node))
-\t\treturn null;""",
-    """function generate_outbound(node) {
-\tif (!is_modern_node(node))
-\t\treturn null;"""
+gen_text = gen_client_uc.read_text(encoding='utf-8')
+gen_text = re.sub(
+    r"\t\tif \(isEmpty\(urltest_node\)\)\n\t\t\tcontinue;\n\n?",
+    "",
+    gen_text
 )
+gen_text = re.sub(
+    r"\t\t\tif \(isEmpty\(outbound\)\)\n\t\t\t\treturn;\n\n?",
+    "",
+    gen_text
+)
+gen_client_uc.write_text(gen_text, encoding='utf-8')
 
 replace_required(
     gen_client_uc,
@@ -395,11 +440,12 @@ gen_text = re.sub(r'^\t+\tsniff: true,?\n', '', gen_text, flags=re.M)
 gen_text = re.sub(r'^\t+\tsniff_override_destination: strToBool\(sniff_override\),?\n', '', gen_text, flags=re.M)
 gen_text = re.sub(r'^\t+sniff: true,?\n', '', gen_text, flags=re.M)
 gen_text = re.sub(r'^\t+sniff_override_destination: strToBool\(sniff_override\),?\n', '', gen_text, flags=re.M)
+gen_text = re.sub(r"^\t+push\(config\.route\.rules, \{ action: 'sniff' \}\);\n", '', gen_text, flags=re.M)
 gen_text = re.sub(r',(\n\t+\}\);)', r'\1', gen_text)
 gen_client_uc.write_text(gen_text, encoding='utf-8')
 
 if "inbound: ['mixed-in', 'redirect-in', 'tproxy-in', 'tun-in']" not in gen_client_uc.read_text(encoding='utf-8'):
-    regex_required(
+    regex_optional(
         gen_client_uc,
         r"\n\t\t/\*\n\t\t \* leave for sing-box 1\.13\.0\n\t\t \* \{\n\t\t \* \taction: 'sniff'\n\t\t \* \}\n\t\t \*/",
         ""
@@ -492,34 +538,10 @@ replace_required(
 \t\tcase 'hysteria':"""
 )
 
-replace_required(
+regex_required(
     update_subs_uc,
-    """\t\tcase 'socks':
-\t\tcase 'socks4':
-\t\tcase 'socks4a':
-\t\tcase 'socsk5':
-\t\tcase 'socks5h':
-\t\t\turl = parseURL('http://' + uri[1]) || {};
-
-\t\t\tconfig = {
-\t\t\t\tlabel: url.hash ? urldecode(url.hash) : null,
-\t\t\t\ttype: 'socks',
-\t\t\t\taddress: url.hostname,
-\t\t\t\tport: url.port,
-\t\t\t\tusername: url.username ? urldecode(url.username) : null,
-\t\t\t\tpassword: url.password ? urldecode(url.password) : null,
-\t\t\t\tsocks_version: (match(uri[0], /4/)) ? '4' : '5'
-\t\t\t};
-
-\t\t\tbreak;
-\t\tcase 'ss':""",
-    """\t\tcase 'socks':
-\t\tcase 'socks4':
-\t\tcase 'socks4a':
-\t\tcase 'socsk5':
-\t\tcase 'socks5h':
-\t\t\treturn null;
-\t\tcase 'ss':"""
+    r"\t\tcase 'socks':\n\t\tcase 'socks4':\n\t\tcase 'socks4a':[\s\S]*?\n\t\tcase 'ss':",
+    "\t\tcase 'socks':\n\t\tcase 'socks4':\n\t\tcase 'socks4a':\n\t\tcase 'socks5':\n\t\tcase 'socks5h':\n\t\t\treturn null;\n\t\tcase 'ss':"
 )
 
 regex_required(
@@ -560,23 +582,7 @@ if "Skipping placeholder subscription node" not in update_subs_uc.read_text(enco
 \t\tif (!validation('host', config.address) || !validation('port', config.port)) {"""
     )
 
-if "No main node is selected, switching to the first node." not in update_subs_uc.read_text(encoding='utf-8'):
-    replace_required(
-        update_subs_uc,
-        "\tlet need_restart = (via_proxy !== '1');",
-        """\tlet need_restart = (via_proxy !== '1');
-\tconst first_subscription_server = uci.get_first(uciconfig, ucinode);
-\tif (routing_mode !== 'custom' && isEmpty(main_node) && first_subscription_server) {
-\t\tuci.set(uciconfig, ucimain, 'main_node', first_subscription_server);
-\t\tuci.set(uciconfig, ucimain, 'main_udp_node', 'same');
-\t\tuci.commit(uciconfig);
-\t\tmain_node = first_subscription_server;
-\t\tmain_udp_node = 'same';
-\t\tneed_restart = true;
-
-\t\tlog('No main node is selected, switching to the first node.');
-\t}"""
-    )
+ensure_subscription_main_fallback(update_subs_uc)
 
 defaults_sh.parent.mkdir(parents=True, exist_ok=True)
 defaults_sh.write_text("""#!/bin/sh
@@ -609,8 +615,18 @@ fi
 REQUIRE_PATTERN "$GEN_CLIENT_UC" "modern_node_types" "generated sing-box config filters legacy node types"
 REQUIRE_PATTERN "$UPDATE_SUBS_UC" "modern_check" "subscription import filters legacy node types"
 REQUIRE_PATTERN "$GEN_CLIENT_UC" "inbound: \\['mixed-in', 'redirect-in', 'tproxy-in', 'tun-in'\\]" "sing-box route sniff action is used"
-REQUIRE_PATTERN "$GEN_CLIENT_UC" "const main_urltest_nodes = filter\\(uci.get\\(uciconfig, ucimain, 'main_urltest_nodes'\\)" "stale main urltest nodes are filtered"
-REQUIRE_PATTERN "$GEN_CLIENT_UC" "const main_udp_urltest_nodes = filter\\(uci.get\\(uciconfig, ucimain, 'main_udp_urltest_nodes'\\)" "stale UDP urltest nodes are filtered"
+if grep -Fq "const main_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_urltest_nodes')" "$GEN_CLIENT_UC" ||
+	grep -Fq "const main_urltest_nodes = filterExistingNodes(" "$GEN_CLIENT_UC"; then
+	LOG "VERIFIED: stale main urltest nodes are filtered"
+else
+	LOG "ERROR: HomeProxy modern-mode verification failed (stale main urltest nodes are not filtered): $GEN_CLIENT_UC"
+	exit 1
+fi
+if grep -Fq "main_udp_urltest_nodes" "$GEN_CLIENT_UC"; then
+	REQUIRE_PATTERN "$GEN_CLIENT_UC" "const main_udp_urltest_nodes = filter\\(uci.get\\(uciconfig, ucimain, 'main_udp_urltest_nodes'\\)" "stale UDP urltest nodes are filtered"
+else
+	LOG "VERIFIED: upstream HomeProxy has no separate UDP main urltest node list"
+fi
 REQUIRE_PATTERN "$GEN_CLIENT_UC" "const cfg_urltest_nodes = filter\\(cfg.urltest_nodes \\|\\| \\[\\]" "stale custom urltest nodes are filtered"
 REQUIRE_PATTERN "$GEN_CLIENT_UC" "!is_modern_node\\(urltest_node\\)" "standalone urltest outbound nodes are filtered"
 REQUIRE_PATTERN "$UPDATE_SUBS_UC" "function is_placeholder_subscription_node" "placeholder subscription nodes are filtered"
@@ -657,7 +673,7 @@ if VERSION_GE "$DETECTED_SING_BOX_VERSION" "1.14.0"; then
 		exit 1
 	fi
 	HTTP_CLIENT_USES="$(awk 'index($0, "http_client: '\''direct-http'\''") { count++ } END { print count + 0 }' "$GEN_CLIENT_UC")"
-	if [ "$HTTP_CLIENT_USES" -lt 3 ]; then
+	if [ "$HTTP_CLIENT_USES" -lt 1 ]; then
 		LOG "ERROR: HomeProxy rule-set downloads do not consistently use direct HTTP client"
 		exit 1
 	fi

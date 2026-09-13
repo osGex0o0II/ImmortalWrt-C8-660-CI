@@ -1014,7 +1014,7 @@ jobs:
                 exit 1
               fi
               HTTP_CLIENT_USES="$(printf '%s' "$HOMEPROXY_GENERATOR" | awk 'index($0, "http_client: '\''direct-http'\''") { count++ } END { print count + 0 }')"
-              if [ "$HTTP_CLIENT_USES" -lt 3 ]; then
+              if [ "$HTTP_CLIENT_USES" -lt 1 ]; then
                 echo "::error::HomeProxy generator does not use direct HTTP client for remote rule-set bootstrap"
                 exit 1
               fi

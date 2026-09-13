@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: "23 20 * * *"
 
+concurrency:
+  group: update-proxy-locks
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -42,7 +46,9 @@ jobs:
           git checkout -B "$BRANCH"
           git add .github/proxy-locks.env
           git commit -m "ci: update proxy locks"
-          git push --force-with-lease origin "$BRANCH"
+          REMOTE_REF="refs/heads/$BRANCH"
+          EXPECTED="$(git ls-remote origin "$REMOTE_REF" | awk '{print $1}')"
+          git push --force-with-lease="$REMOTE_REF:$EXPECTED" origin "HEAD:$REMOTE_REF"
 
           if gh pr view "$BRANCH" --json url --jq .url >/tmp/proxy-locks-pr-url 2>/dev/null; then
             echo "Updated existing proxy lock PR: $(cat /tmp/proxy-locks-pr-url)"
