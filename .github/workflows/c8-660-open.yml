@@ -299,12 +299,6 @@ jobs:
               PKG_LOCK_homeproxy_COMMIT)
                 [[ "$value" =~ ^[0-9a-f]{40}$ ]]
                 ;;
-              PKG_LOCK_luci_app_wolultra_BRANCH)
-                [[ "$value" =~ ^[A-Za-z0-9._/-]+$ ]]
-                ;;
-              PKG_LOCK_luci_app_wolultra_COMMIT)
-                [[ "$value" =~ ^[0-9a-f]{40}$ ]]
-                ;;
               *)
                 return 1
                 ;;
@@ -629,7 +623,7 @@ jobs:
               echo "OK: manifest contains $pkg"
             else
               echo "::error::Missing manifest package: $pkg"
-              grep -E "^(luci-app-|sing-box|luci-app-wolultra|kmod-nft-|kmod-mtd-rw|tcpdump|openssh-sftp-server|socat|ttyd|miniupnpd|etherwake|zerotier)" "$MANIFEST_FILE" || true
+              grep -E "^(luci-app-|sing-box|kmod-nft-|kmod-mtd-rw|tcpdump|openssh-sftp-server|socat|ttyd|miniupnpd|etherwake|zerotier)" "$MANIFEST_FILE" || true
               exit 1
             fi
           }
@@ -674,16 +668,15 @@ jobs:
           else
             reject_manifest_package 'miniupnpd-nftables'
           fi
-          reject_manifest_package 'luci-app-wol'
+          if config_enabled 'luci-app-wol'; then
+            require_manifest_package 'luci-app-wol'
+          else
+            reject_manifest_package 'luci-app-wol'
+          fi
           if config_enabled 'etherwake'; then
             require_manifest_package 'etherwake'
           else
             reject_manifest_package 'etherwake'
-          fi
-          if config_enabled 'luci-app-wolultra'; then
-            require_manifest_package 'luci-app-wolultra'
-          else
-            reject_manifest_package 'luci-app-wolultra'
           fi
           if config_enabled 'luci-app-zerotier'; then
             require_manifest_package 'luci-app-zerotier'
@@ -836,18 +829,12 @@ jobs:
             reject_rootfs 'etc/init\.d/miniupnpd' 'miniupnpd init service'
             reject_rootfs 'usr/sbin/miniupnpd' 'miniupnpd daemon'
           fi
-          reject_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
-          if config_enabled 'luci-app-wolultra'; then
-            require_rootfs 'usr/share/luci/menu\.d/luci-app-wolultra\.json' 'LuCI WOL Ultra app'
-            require_rootfs 'www/luci-static/resources/view/wolultra\.js' 'LuCI WOL Ultra view'
-            require_rootfs 'etc/config/wolultra' 'WOL Ultra UCI config'
-            require_rootfs 'etc/init\.d/wolultra' 'WOL Ultra init service'
-            require_rootfs 'usr/share/rpcd/ucode/luci\.wolultra' 'WOL Ultra RPC backend'
+          if config_enabled 'luci-app-wol'; then
+            require_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
           else
-            reject_rootfs 'usr/share/luci/menu\.d/luci-app-wolultra\.json' 'LuCI WOL Ultra app'
-            reject_rootfs 'www/luci-static/resources/view/wolultra\.js' 'LuCI WOL Ultra view'
+            reject_rootfs 'usr/share/luci/menu\.d/luci-app-wol\.json' 'LuCI Wake-on-LAN app'
           fi
-          if config_enabled 'etherwake' || config_enabled 'luci-app-wolultra'; then
+          if config_enabled 'luci-app-wol' || config_enabled 'etherwake'; then
             require_rootfs 'usr/bin/etherwake' 'etherwake helper'
           else
             reject_rootfs 'usr/bin/etherwake' 'etherwake helper'
@@ -968,11 +955,13 @@ jobs:
               echo "::error::HomeProxy generator still contains legacy sing-box inbound sniff fields"
               exit 1
             fi
-            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const main_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_urltest_nodes')"; then
+            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const main_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_urltest_nodes')" &&
+               ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const main_urltest_nodes = filterExistingNodes("; then
               echo "::error::HomeProxy generator does not filter stale main urltest nodes"
               exit 1
             fi
-            if ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const main_udp_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes')"; then
+            if printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "main_udp_urltest_nodes" &&
+               ! printf '%s' "$HOMEPROXY_GENERATOR" | grep -Fq "const main_udp_urltest_nodes = filter(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes')"; then
               echo "::error::HomeProxy generator does not filter stale UDP urltest nodes"
               exit 1
             fi
