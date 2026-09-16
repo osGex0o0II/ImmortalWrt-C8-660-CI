@@ -67,6 +67,7 @@ jobs:
             echo "Created init-build-sha PR for review"
           else
             echo "::warning::GitHub Actions cannot open pull requests in this repository (Actions PR permission is disabled)."
-            echo "::warning::Falling back to a direct push to ${{ github.ref_name }}; enable 'Allow GitHub Actions to create and approve pull requests' to restore the review gate."
-            git push origin "HEAD:${{ github.ref_name }}"
+            echo "::warning::The refreshed locks are committed on branch $BRANCH but were NOT applied to ${{ github.ref_name }}."
+            echo "::warning::Review and merge manually: https://github.com/${{ github.repository }}/compare/${{ github.ref_name }}...$BRANCH?expand=1"
+            echo "::warning::Enable 'Allow GitHub Actions to create and approve pull requests' to let this job open the pull request itself."
           fi

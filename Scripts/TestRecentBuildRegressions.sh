@@ -100,15 +100,18 @@ text = Path(sys.argv[1]).read_text(encoding="utf-8")
 required = [
     "elif gh pr create",
     "cannot open pull requests in this repository",
-    'git push origin "HEAD:${{ github.ref_name }}"',
+    "/compare/${{ github.ref_name }}...$BRANCH?expand=1",
 ]
+forbidden = ['git push origin "HEAD:${{ github.ref_name }}"']
 for fragment in required:
     assert fragment in text, f"missing PR fallback: {fragment}"
+for fragment in forbidden:
+    assert fragment not in text, f"unsafe fallback present: {fragment}"
 PY
 		then
-			pass "$(basename "$workflow") falls back to a direct push when PR creation is blocked"
+			pass "$(basename "$workflow") keeps the refreshed locks on its branch when PR creation is blocked"
 		else
-			fail "$(basename "$workflow") must degrade gracefully when Actions cannot open PRs"
+			fail "$(basename "$workflow") must degrade gracefully when Actions cannot open PRs, without touching the default branch"
 		fi
 	done
 }
