@@ -86,8 +86,36 @@ PY
 	fi
 }
 
+test_nightly_pr_fallback() {
+	local workflow
+	for workflow in \
+		"$REPO_ROOT/.github/workflows/update-proxy-locks.yml" \
+		"$REPO_ROOT/.github/workflows/update-init-build-sha.yml"
+	do
+		if python3 - "$workflow" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+required = [
+    "elif gh pr create",
+    "cannot open pull requests in this repository",
+    'git push origin "HEAD:${{ github.ref_name }}"',
+]
+for fragment in required:
+    assert fragment in text, f"missing PR fallback: {fragment}"
+PY
+		then
+			pass "$(basename "$workflow") falls back to a direct push when PR creation is blocked"
+		else
+			fail "$(basename "$workflow") must degrade gracefully when Actions cannot open PRs"
+		fi
+	done
+}
+
 test_homeproxy_anchor
 test_update_workflow_lease
+test_nightly_pr_fallback
 test_proxy_version_alignment
 
 if [ "$FAILURES" -eq 0 ]; then
